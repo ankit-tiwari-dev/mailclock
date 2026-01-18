@@ -47,7 +47,8 @@ We will use **Render** to host the Node.js API, PostgreSQL Database, and Redis.
     - `PORT`: `4000`
     - `WORKER_CONCURRENCY`: `5`
     - `MAX_EMAILS_PER_HOUR`: `50`
-    - `RESEND_API_KEY`: (Your API Key from Resend.com - See Step 5 below)
+    - `RESEND_API_KEY`: (Your API Key from Resend.com)
+    - `MOCK_SEND`: `true` (Add this to simulate successful sends to ANY email address for your demo)
 10. Click **Create Web Service**.
 
 ### 5. Production Email Setup (Resend)
@@ -106,6 +107,10 @@ This happens if migrations haven't run. I've updated `server/package.json` to ru
 This usually means your `NEXT_PUBLIC_API_URL` is wrong or the backend is returning a 404 page.
 - Make sure `NEXT_PUBLIC_API_URL` does **NOT** end in `/api`.
 - Check that your Render Backend URL is active.
+
+### ❌ Error: `You can only send testing emails to your own email address`
+This is a standard restriction of the Resend Free Tier. 
+- **Demo Fix**: Add the environment variable `MOCK_SEND=true` in Render. This will mark every email as "SENT" in your dashboard instantly, allowing you to demonstrate the full system to anyone without restricted email addresses!
 
 ### ⚠️ Warning: `Eviction policy is allkeys-lru...`
 This is a warning from the queue system. 

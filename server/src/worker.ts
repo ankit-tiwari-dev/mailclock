@@ -84,7 +84,13 @@ export const emailWorker = new Worker(
         try {
             let info: any;
 
-            if (resend) {
+            // Support for Mock Sending (for demos/testing without real API/SMTP)
+            if (process.env.MOCK_SEND === 'true') {
+                console.log(`[MOCK MODE] Job ${job.id}: Simulating successful send to ${recipient}...`);
+                await randomDelay(1000); // Simulate network latency
+                info = { messageId: `mock-${Date.now()}` };
+            }
+            else if (resend) {
                 console.log(`[VIA API] Job ${job.id}: Sending via Resend...`);
                 const response = await resend.emails.send({
                     from: 'ReachInbox Scheduler <onboarding@resend.dev>', // Default for testing, or user verified domain
