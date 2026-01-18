@@ -185,6 +185,17 @@ app.get('/api/health', async (req, res) => {
     }
 });
 
+// API: Admin Reset - Delete EVERYTHING (User requested wipe)
+app.delete('/api/admin/reset', async (req, res) => {
+    try {
+        await prisma.emailJob.deleteMany({});
+        await prisma.user.deleteMany({});
+        res.json({ message: 'PROD DATABASE WIPED: All users and jobs deleted.' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to reset database' });
+    }
+});
+
 // API: Cleanup - Delete jobs for a user
 app.delete('/api/cleanup', async (req, res) => {
     try {
