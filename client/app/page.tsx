@@ -2,13 +2,42 @@
 
 import { useSession, signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Loader2 } from "lucide-react"
 
 export default function Home() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email) {
+      alert("Please enter your email")
+      return
+    }
+    setLoading(true)
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      })
+      if (result?.error) {
+        alert("Login failed")
+      } else {
+        router.push("/dashboard")
+      }
+    } catch (error) {
+      console.error("Login error:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -65,16 +94,25 @@ export default function Home() {
               <Input
                 type="email"
                 placeholder="Email ID"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="h-12 bg-slate-50 border-slate-200 rounded-lg text-sm placeholder:text-slate-400"
               />
               <Input
                 type="password"
                 placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="h-12 bg-slate-50 border-slate-200 rounded-lg text-sm placeholder:text-slate-400"
               />
             </div>
 
-            <Button className="w-full bg-[#00A86B] hover:bg-[#00925D] text-white h-12 rounded-lg font-semibold text-sm shadow-sm transition-all mt-6">
+            <Button
+              onClick={handleLogin}
+              disabled={loading}
+              className="w-full bg-[#00A86B] hover:bg-[#00925D] text-white h-12 rounded-lg font-semibold text-sm shadow-sm transition-all mt-6"
+            >
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Login
             </Button>
           </div>
