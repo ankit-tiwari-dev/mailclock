@@ -46,6 +46,17 @@ export default function ComposePage() {
 
     const imageInputRef = useRef<HTMLInputElement>(null)
     const sendLaterRef = useRef<HTMLDivElement>(null)
+    const editorRef = useRef<HTMLDivElement>(null)
+
+    // Sync body changes from external sources (e.g. image upload) to editor
+    useEffect(() => {
+        if (editorRef.current && editorRef.current.innerHTML !== body) {
+            // Only update if content is actually different to avoid cursor jumps
+            // But for simple typing, onInput handles it and this condition is false.
+            // This mainly handles initial load or image insertion.
+            editorRef.current.innerHTML = body
+        }
+    }, [body])
 
     // Handle back button click to toggle sidebar
     const handleBackClick = () => {
@@ -89,6 +100,8 @@ export default function ComposePage() {
             document.execCommand(command, false, value)
         }
         checkFormats()
+        // Sync state immediately
+        if (editorRef.current) setBody(editorRef.current.innerHTML)
     }
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -97,11 +110,13 @@ export default function ComposePage() {
             const reader = new FileReader()
             reader.onload = (e) => {
                 const imgUrl = e.target?.result as string
+                // Append directly to body state, useEffect will sync DOM
                 setBody(prev => prev + `<br /><img src="${imgUrl}" alt="uploaded image" style="max-width: 100%; margin-top: 10px;" /><br />`)
             }
             reader.readAsDataURL(file)
         }
     }
+
 
     const handleFileUpload = (e: any) => {
         const uploadedFile = e.target.files[0]
@@ -422,13 +437,13 @@ export default function ComposePage() {
 
                         {/* Editable Area */}
                         <div
+                            ref={editorRef}
                             className="flex-1 w-full bg-transparent text-sm text-slate-800 focus:outline-none leading-relaxed overflow-y-auto"
                             contentEditable
                             suppressContentEditableWarning
                             onInput={(e) => setBody(e.currentTarget.innerHTML)}
                             onKeyUp={checkFormats}
                             onMouseUp={checkFormats}
-                            dangerouslySetInnerHTML={{ __html: body }}
                             style={{ minHeight: '200px' }}
                         />
                     </div>
