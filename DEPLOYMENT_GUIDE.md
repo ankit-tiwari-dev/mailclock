@@ -26,6 +26,10 @@ We will use **Render** to host the Node.js API, PostgreSQL Database, and Redis.
 4. **Plan**: `Free`.
 5. Click **Create Redis**.
 6. **Copy** the `Internal Redis URL` (e.g., `redis://red-xxxx:6379`).
+7. **Important**: BullMQ requires the Redis eviction policy to be `noeviction`. 
+    - On Render, go to your Redis instance settings.
+    - If you are on a paid plan, change **Eviction Policy** to `noeviction`.
+    - If you are on the **Free tier**, Render might not allow this change. The app will usually still work, but you may see a warning in the logs.
 
 ### 4. Deploy Node.js Web Service
 1. Click **New +** -> **Web Service**.
@@ -81,6 +85,24 @@ We will use **Vercel** to host the Next.js Frontend.
 5. Add `https://YOUR-VERCEL-URL/api/auth/callback/google` to **Authorized redirect URIs**.
 
 ---
+
+---
+
+## 🛠 Troubleshooting Common Issues
+
+### ❌ Error: `The table public.User does not exist`
+This happens if migrations haven't run. I've updated `server/package.json` to run these automatically during build. 
+- If you still see this, go to Render -> your `email-scheduler-api` -> **Manual Deploy** -> **Clear Build Cache & Deploy**.
+
+### ❌ Error: `SyntaxError: Unexpected token '<'`
+This usually means your `NEXT_PUBLIC_API_URL` is wrong or the backend is returning a 404 page.
+- Make sure `NEXT_PUBLIC_API_URL` does **NOT** end in `/api`.
+- Check that your Render Backend URL is active.
+
+### ⚠️ Warning: `Eviction policy is allkeys-lru...`
+This is a warning from the queue system. 
+- It means if your Redis gets full, it might delete scheduled jobs.
+- **Fix**: In Render Redis settings, change the **Eviction Policy** to `noeviction` (requires paid tier on Render). For light testing, the Free tier is fine.
 
 ## 🎉 Done!
 Your application is now live on the production internet!

@@ -154,7 +154,8 @@ export default function ComposePage() {
         if (showSendLater) {
             const selectedDate = new Date(sendAt).getTime()
             const now = new Date().getTime()
-            if (selectedDate < now) {
+            // Add a 10-second buffer to allow for the time it takes to click 'Send'
+            if (selectedDate < now - 10000) {
                 alert("You cannot schedule emails in the past. Please select a future time.")
                 setIsUploading(false)
                 return
@@ -187,7 +188,7 @@ export default function ComposePage() {
                                     emails,
                                     subject,
                                     body,
-                                    sendAt,
+                                    sendAt: showSendLater ? sendAt : null,
                                     delay,
                                     hourlyLimit,
                                     userId: session?.user?.email || 'demo@reachinbox.ai'

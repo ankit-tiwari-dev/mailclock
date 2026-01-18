@@ -43,7 +43,19 @@ app.post('/api/schedule', async (req, res) => {
         }
 
         const baseNow = new Date().getTime();
-        const targetStartTime = sendAt ? new Date(sendAt).getTime() : baseNow;
+        let targetStartTime = baseNow;
+
+        if (sendAt) {
+            targetStartTime = new Date(sendAt).getTime();
+            // Validation: Reject if more than 1 minute in the past
+            if (targetStartTime < baseNow - 60000) {
+                return res.status(400).json({
+                    error: 'Invalid Schedule Time',
+                    message: 'Cannot schedule emails in the past.'
+                });
+            }
+        }
+
         const staggeredDelayMs = (delay || 2) * 1000;
 
         // Ensure User Exists (Fix for P2003 Foreign Key Error)
