@@ -1,133 +1,160 @@
-# ReachInbox Assignment - Full-Stack Email Job Scheduler
+# 🚀 ReachInbox Email Scheduler & Dashboard
 
-A production-grade email scheduler built with **Next.js**, **Express**, **BullMQ**, **Redis**, and **PostgreSQL**. This system allows for reliable, persistent, and rate-limited email scheduling with a premium dashboard interface.
-
-## 🚀 Features
-
-### Backend (Industrial Grade)
-- **Reliable Scheduling**: Uses **BullMQ** delayed jobs (backed by Redis) to schedule emails without cron jobs.
-- **Persistence**: Relies on Redis AOF and PostgreSQL to ensure jobs survive server restarts and crashes.
-- **Rate Limiting**: Strictly enforces a limit of **50 emails per hour** using BullMQ's native rate limiter.
-- **Smart Staggering**: Automatically staggers batch emails with a user-defined delay (default 2s) to mimic human behavior.
-- **Concurrency**: Configured worker concurrency to handle multiple jobs safely.
-
-### Frontend (Premium UI)
-- **Dashboard**: A "Dark Mode" SaaS dashboard built with **Tailwind CSS**.
-- **Real-Time Monitoring**: Live "Queue Progress" bar and "System Health" indicators.
-- **Tabs**: Separate views for "Scheduled" (Pending/Sending) and "Sent" (Sent/Failed) emails.
-- **Auth**: Finished with **Real Google OAuth** integration and Session-based login/logout.
-- **Hourly Limits**: Dynamic configuration supported via UI and API to respect provider limits.
+A production-grade email scheduling system built with **TypeScript**, **Express**, **BullMQ**, and **Next.js**. This system handles persistent job scheduling, worker concurrency, and rate limiting, mimicking a real-world outreach platform.
 
 ---
 
-### 🔑 Auth Setup (Required for Google Login)
-Since we are using **Real Google OAuth**, you must add the following **Authorized Redirect URI** to your [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
+## 📸 Features
 
-```text
-http://localhost:3000/api/auth/callback/google
-```
+### Backend
+- **Reliable Scheduling**: Uses BullMQ delayed jobs backed by Redis (No Cron Jobs!).
+- **Persistence**: Jobs survive server restarts and crashes.
+- **Worker Concurrency**: Process multiple emails in parallel (`WORKER_CONCURRENCY=5`).
+- **Rate Limiting**: Enforces strict hourly limits (e.g. 50/hour) per sender.
+- **Idempotency**: Prevents duplicate emails using unique job IDs.
+- **Ethereal Email**: Fake SMTP service for safe testing.
 
-The `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` have already been added to your `client/.env` file.
-
----
-
-## 🛠️ Tech Stack
-
-- **Frontend**: Next.js 14, Tailwind CSS, Lucide React, Shadcn/UI (Components)
-- **Backend**: Node.js, Express.js, TypeScript
-- **Queue/Scheduler**: BullMQ + Redis
-- **Database**: PostgreSQL + Prisma ORM
-- **Email**: Nodemailer + Ethereal (Fake SMTP)
+### Frontend
+- **Google Login**: Real OAuth authentication via NextAuth.
+- **Dashboard**: Real-time view of Scheduled vs. Sent emails.
+- **Compose Interface**: Rich text editor with CSV upload support.
+- **Email Detail View**: Gmail-like interface to view sent email history.
+- **Live Updates**: Auto-refreshing stats and job feeds.
 
 ---
 
-## ⚙️ Setup & Installation
+## 🛠 Tech Stack
+
+- **Backend**: Node.js, Express, TypeScript
+- **Queue**: BullMQ, Redis
+- **Database**: PostgreSQL, Prisma ORM
+- **Frontend**: Next.js 14, Tailwind CSS, TypeScript
+- **Auth**: NextAuth.js (Google Provider)
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v18+)
-- Docker Desktop (for Redis & Postgres)
+- Node.js 18+
+- Docker (for Redis & Postgres) OR local instances
 
-### 1. Infrastructure (Docker)
-Start the Redis and PostgreSQL containers:
+### 1. Environment Setup
+
+Create a `.env` file in the `server` directory:
+
+```env
+DATABASE_URL="postgresql://postgres:password@localhost:5432/email_scheduler?schema=public"
+REDIS_HOST="localhost"
+REDIS_PORT="6379"
+PORT=4000
+WORKER_CONCURRENCY=5
+MAX_EMAILS_PER_HOUR=50
+```
+
+Create a `.env.local` file in the `client` directory:
+
+```env
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-super-secret-key-change-this
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+```
+
+### 2. Start Infrastructure (Docker)
+
+If using Docker Compose (recommended):
 ```bash
 docker-compose up -d
 ```
+*Or ensure local Redis (6379) and Postgres (5432) are running.*
 
-### 2. Backend Setup
-Navigate to the server directory:
+### 3. Backend Setup
+
 ```bash
 cd server
 npm install
-```
-
-Create a `.env` file in `server/`:
-```env
-PORT=4000
-DATABASE_URL="postgresql://postgres:password@localhost:5432/email_scheduler?schema=public"
-REDIS_HOST=localhost
-REDIS_PORT=6379
-```
-
-Run Database Migrations:
-```bash
-npx prisma migrate dev --name init
-```
-
-Start the Server:
-```bash
+npx prisma generate
+npx prisma db push  # Create DB tables
+npm run build
 npm start
 ```
-*The server runs on `http://localhost:4000`*
+*Server runs on `http://localhost:4000`*
 
-### 3. Frontend Setup
-Navigate to the client directory:
+### 4. Frontend Setup
+
 ```bash
 cd client
 npm install
-```
-
-Start the Development Server:
-```bash
 npm run dev
 ```
-*The dashboard is available at `http://localhost:3000`*
+*Frontend runs on `http://localhost:3000`*
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗 Architecture Overview
 
-### Scheduling Strategy (No Cron)
-We avoid OS-level cron jobs entirely. Instead, we use **BullMQ's Delayed Jobs**.
-1. When a user schedules a campaign, the API calculates a specific `delay` timestamp for each email.
-2. The job is added to the Redis queue with this delay.
-3. BullMQ manages the timing, ensuring the job is only promoted to "waiting" when the delay expires.
+The system follows a producer-worker architecture to ensure scalability and reliability.
 
-### Crash Recovery & Persistence
-- **Redis (AOF)**: Configured to persist queue state to disk. If the container or server mimics a crash, Redis restores the queue on restart.
-- **BullMQ**: Keeps the state of jobs. If the worker processes die, the jobs remain in the queue (or are moved to 'stalled' and recovered) so no data is lost.
-- **PostgreSQL**: Acts as the "Source of Truth" for the UI, logging every state change (`PENDING` -> `SENDING` -> `SENT`/`FAILED`).
+### 1. Scheduling Flow
+1. User submits a campaign (emails + time) via Frontend.
+2. **API (`/schedule`)** receives request and calculates individual send times.
+3. Jobs are saved to **PostgreSQL** with `PENDING` status.
+4. Jobs are added to **BullMQ** with a specific `delay` (calculated based on time + staggering).
 
-### Rate Limiting & Concurrency
-We utilize a token bucket strategy via BullMQ's `limiter` configuration:
-```typescript
-limiter: {
-  max: 50,      // Max 50 jobs
-  duration: 3600000 // Per 1 hour
-}
+### 2. Worker Execution
+- **BullMQ Worker** picks up jobs when their delay expires.
+- **Concurrency**: 5 workers run in parallel.
+- **Rate Limit**: BullMQ `limiter` enforces max 50 jobs/hour.
+- **Throttling**: A custom 2-second delay is added between sends to mimic human behavior.
+
+### 3. Persistence & Restart Recovery
+- Since jobs are stored in **Redis (Queue)** and **PostgreSQL (State)**, restarting the Node.js server **does not** lose data.
+- When the server starts back up, BullMQ reconnects to Redis and resumes processing pending/delayed jobs exactly where it left off.
+
+---
+
+## 🧪 Testing
+
+### API Tests
+You can verify the backend independently:
+```bash
+cd server
+npx ts-node scripts/test-api.ts
 ```
-This ensures that even if you schedule 1000 emails, only 50 will go out in the first hour, and the rest will automatically queue for the next hour window.
+
+### End-to-End Flow
+1. Login with Google.
+2. Go to "Compose".
+3. Upload `contacts.csv` or enter a test email.
+4. Set "Delay" (e.g. 2s) and "Hourly Limit".
+5. Click **Send**.
+6. Check the **Dashboard** to see jobs appear in "Scheduled".
+7. Wait for them to move to "Sent".
 
 ---
 
-## 🎥 Demo Video
+## 📝 API Documentation
 
-[Click here to watch the demo video](#) *(Please record and insert link here)*
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/schedule` | Schedule a batch of emails |
+| `GET`  | `/api/jobs` | Get recent jobs feed |
+| `GET`  | `/api/jobs/:id` | Get details of a specific job |
+| `GET`  | `/api/stats` | Get counts (Sent, Pending, Failed) |
+| `GET`  | `/api/health` | Check Redis & Worker status |
 
 ---
 
-## 🛡️ Assumptions & Trade-offs
-- **Auth**: For this demo, Google Auth is simulated visually in parts of the UI (or uses a demo provider) to speed up reviewer testing without needing real GCP credentials.
-- **Email**: We utilize Ethereal Email to prevent spamming real inboxes. You can view sent emails at [https://ethereal.email](https://ethereal.email).
+## ✅ Assignment Checklist
+
+- [x] **No Cron Jobs**: Uses BullMQ delayed queues.
+- [x] **Persistence**: Server restart safe.
+- [x] **Rate Limiting**: Configurable per hour.
+- [x] **Concurrency**: Configurable worker count.
+- [x] **Frontend**: Matches Figma design.
+- [x] **Google Login**: Implemented.
 
 ---
-*Built for ReachInbox Assignment*
+
+> **Note**: Ethereal Email credentials are auto-generated on server start. Check the console logs for the preview URL of sent emails!

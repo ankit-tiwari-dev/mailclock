@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 // API: Schedule Batch Emails (Staggered)
 app.post('/api/schedule', async (req, res) => {
@@ -95,6 +95,38 @@ app.get('/api/jobs', async (req, res) => {
         res.json(jobs);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch jobs' });
+    }
+});
+
+// API: Get Single Job by ID
+app.get('/api/jobs/:id', async (req, res) => {
+    try {
+        const job = await prisma.emailJob.findUnique({
+            where: { id: req.params.id }
+        });
+
+        if (!job) {
+            return res.status(404).json({ error: 'Job not found' });
+        }
+
+        // Format response to match frontend expectations
+        const formattedJob = {
+            id: job.id,
+            status: job.status,
+            processedAt: job.sentAt || job.scheduledAt,
+            createdAt: job.createdAt,
+            data: {
+                email: job.recipient,
+                subject: job.subject,
+                body: job.body,
+                scheduledTime: job.scheduledAt
+            }
+        };
+
+        res.json(formattedJob);
+    } catch (error) {
+        console.error('[API ERROR] /jobs/:id:', error);
+        res.status(500).json({ error: 'Failed to fetch job' });
     }
 });
 

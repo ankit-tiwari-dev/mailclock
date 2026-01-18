@@ -88,9 +88,10 @@ export const emailWorker = new Worker(
             host: process.env.REDIS_HOST || 'localhost',
             port: parseInt(process.env.REDIS_PORT || '6379'),
         },
-        // Constraint: Max 50 emails per hour
+        concurrency: parseInt(process.env.WORKER_CONCURRENCY || '5'),
+        // Constraint: Configurable rate limit per hour
         limiter: {
-            max: 50,
+            max: parseInt(process.env.MAX_EMAILS_PER_HOUR || '50'),
             duration: 3600000, // 1 hour in ms
         },
     }

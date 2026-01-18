@@ -18,8 +18,9 @@ interface EmailJobData {
 
 export const addEmailJob = async (data: EmailJobData, delay: number) => {
     await emailQueue.add('send-email', data, {
-        delay: delay, // Delay in milliseconds
-        attempts: 3, // Retry failed jobs 3 times
+        jobId: data.id, // Guarantee idempotency: no duplicates for the same DB record
+        delay: delay,
+        attempts: 3,
         backoff: {
             type: 'exponential',
             delay: 1000,
