@@ -58,14 +58,14 @@ app.post('/api/schedule', async (req, res) => {
 
         const staggeredDelayMs = (delay || 2) * 1000;
 
-        // Ensure User Exists (Fix for P2003 Foreign Key Error)
+        // Ensure User Exists (Fix: Use provided userId instead of hardcoded demo)
+        const userEmail = userId || 'demo@reachinbox.ai';
         const dbUser = await prisma.user.upsert({
-            where: { email: 'demo@reachinbox.ai' },
+            where: { email: userEmail },
             update: {},
             create: {
-                id: 'demo-user-id',
-                email: 'demo@reachinbox.ai',
-                name: 'Demo User'
+                email: userEmail,
+                name: userEmail.split('@')[0]
             }
         });
 
@@ -106,11 +106,14 @@ app.post('/api/schedule', async (req, res) => {
 // API: Stats
 app.get('/api/stats', async (req, res) => {
     try {
+        const { userId } = req.query;
+        const where = userId ? { user: { email: String(userId) } } : {};
+
         const [total, sent, failed, pending] = await Promise.all([
-            prisma.emailJob.count(),
-            prisma.emailJob.count({ where: { status: 'SENT' } }),
-            prisma.emailJob.count({ where: { status: 'FAILED' } }),
-            prisma.emailJob.count({ where: { status: 'PENDING' } })
+            prisma.emailJob.count({ where }),
+            prisma.emailJob.count({ where: { ...where, status: 'SENT' } }),
+            prisma.emailJob.count({ where: { ...where, status: 'FAILED' } }),
+            prisma.emailJob.count({ where: { ...where, status: 'PENDING' } })
         ]);
 
         res.json({ scheduled: total, sent, failed, pending });
@@ -122,7 +125,11 @@ app.get('/api/stats', async (req, res) => {
 // API: Job Feed (Real-time updates)
 app.get('/api/jobs', async (req, res) => {
     try {
+        const { userId } = req.query;
+        const where = userId ? { user: { email: String(userId) } } : {};
+
         const jobs = await prisma.emailJob.findMany({
+            where,
             orderBy: { createdAt: 'desc' },
             take: 20
         });
@@ -178,11 +185,17 @@ app.get('/api/health', async (req, res) => {
     }
 });
 
-// API: Cleanup - Delete all jobs (useful for resetting demo)
+// API: Cleanup - Delete jobs for a user
 app.delete('/api/cleanup', async (req, res) => {
     try {
-        await prisma.emailJob.deleteMany({});
-        res.json({ message: 'All jobs cleared successfully' });
+        const { userId } = req.query;
+        if (!userId) {
+            return res.status(400).json({ error: 'UserId (email) is required for cleanup' });
+        }
+        await prisma.emailJob.deleteMany({
+            where: { user: { email: String(userId) } }
+        });
+        res.json({ message: 'Jobs cleared successfully' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to clear jobs' });
     }

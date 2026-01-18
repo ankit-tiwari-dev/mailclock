@@ -36,7 +36,11 @@ export default function Dashboard() {
         const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '');
 
         const safeFetch = (endpoint: string, setter: (data: any) => void) => {
-            fetch(`${baseUrl}${endpoint}`)
+            const url = new URL(`${baseUrl}${endpoint}`);
+            if (session?.user?.email) {
+                url.searchParams.append('userId', session.user.email);
+            }
+            fetch(url.toString())
                 .then(res => {
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     return res.json();
@@ -63,7 +67,10 @@ export default function Dashboard() {
 
         try {
             const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '');
-            const response = await fetch(`${baseUrl}/api/cleanup`, { method: 'DELETE' });
+            const userId = session?.user?.email;
+            if (!userId) return;
+
+            const response = await fetch(`${baseUrl}/api/cleanup?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' });
             if (response.ok) {
                 setJobs([]);
                 setStats({ scheduled: 0, sent: 0, failed: 0, pending: 0 });
