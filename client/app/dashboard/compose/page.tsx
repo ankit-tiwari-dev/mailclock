@@ -39,7 +39,12 @@ export default function ComposePage() {
     const [body, setBody] = useState("")
     const [delay, setDelay] = useState(2)
     const [hourlyLimit, setHourlyLimit] = useState(50)
-    const [sendAt, setSendAt] = useState(new Date().toISOString().slice(0, 16))
+    // Fix: Use local time for datetime-local input
+    const [sendAt, setSendAt] = useState(() => {
+        const now = new Date();
+        const offset = now.getTimezoneOffset() * 60000;
+        return new Date(now.getTime() - offset).toISOString().slice(0, 16);
+    })
     const [detectedEmails, setDetectedEmails] = useState<number>(0)
     const [showSendLater, setShowSendLater] = useState(false)
     const [activeFormats, setActiveFormats] = useState<string[]>([])
@@ -188,7 +193,8 @@ export default function ComposePage() {
                                     emails,
                                     subject,
                                     body,
-                                    sendAt: showSendLater ? sendAt : null,
+                                    // Fix: Send absolute ISO string (UTC) to server
+                                    sendAt: showSendLater ? new Date(sendAt).toISOString() : null,
                                     delay,
                                     hourlyLimit,
                                     userId: session?.user?.email || 'demo@reachinbox.ai'
