@@ -1,8 +1,10 @@
 import { Worker, Job } from 'bullmq';
 import nodemailer from 'nodemailer';
 import { PrismaClient } from '@prisma/client';
+import { Resend } from 'resend';
 
 const prisma = new PrismaClient();
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // Ethereal Email Setup - Cached transporter to avoid repeated account generation
 let cachedTransporter: any = null;
@@ -80,21 +82,46 @@ export const emailWorker = new Worker(
         await randomDelay(2000);
 
         try {
-            const transporter = await getTransporter();
+            let info: any;
 
-            const info = await transporter.sendMail({
-                from: '"ReachInbox Scheduler" <scheduler@reachinbox.ai>',
-                to: recipient,
-                subject: subject,
-                text: body,
-                html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-                <h2 style="color: #2563eb;">Message from ReachInbox</h2>
-                <p>${body}</p>
-                <div style="margin-top: 20px; font-size: 12px; color: #666;">
-                    Received: ${new Date().toLocaleString()}
-                </div>
-               </div>`,
-            });
+            if (resend) {
+                console.log(`[VIA API] Job ${job.id}: Sending via Resend...`);
+                const response = await resend.emails.send({
+                    from: 'ReachInbox Scheduler <onboarding@resend.dev>', // Default for testing, or user verified domain
+                    to: recipient,
+                    subject: subject,
+                    text: body,
+                    html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                    <h2 style="color: #2563eb;">Message from ReachInbox</h2>
+                    <p>${body}</p>
+                    <div style="margin-top: 20px; font-size: 12px; color: #666;">
+                        Received: ${new Date().toLocaleString()} (API)
+                    </div>
+                   </div>`,
+                });
+
+                if (response.error) {
+                    throw new Error(`Resend API Error: ${response.error.message}`);
+                }
+                info = { messageId: response.data?.id };
+            } else {
+                console.log(`[VIA SMTP] Job ${job.id}: Sending via SMTP...`);
+                const transporter = await getTransporter();
+                const smtpInfo = await transporter.sendMail({
+                    from: '"ReachInbox Scheduler" <scheduler@reachinbox.ai>',
+                    to: recipient,
+                    subject: subject,
+                    text: body,
+                    html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                    <h2 style="color: #2563eb;">Message from ReachInbox</h2>
+                    <p>${body}</p>
+                    <div style="margin-top: 20px; font-size: 12px; color: #666;">
+                        Received: ${new Date().toLocaleString()} (SMTP)
+                    </div>
+                   </div>`,
+                });
+                info = { messageId: smtpInfo.messageId };
+            }
 
             console.log(`[SUCCESS] Job ${job.id}: Sent! MessageId: ${info.messageId}`);
 

@@ -47,7 +47,15 @@ We will use **Render** to host the Node.js API, PostgreSQL Database, and Redis.
     - `PORT`: `4000`
     - `WORKER_CONCURRENCY`: `5`
     - `MAX_EMAILS_PER_HOUR`: `50`
+    - `RESEND_API_KEY`: (Your API Key from Resend.com - See Step 5 below)
 10. Click **Create Web Service**.
+
+### 5. Production Email Setup (Resend)
+Since Render's Free tier blocks SMTP ports (587/465), we use **Resend** (API-based) for production.
+1. Sign up at [Resend.com](https://resend.com).
+2. Go to **API Keys** and create a new key.
+3. Add this key to your Render Web Service as an Environment Variable named `RESEND_API_KEY`.
+4. (Optional) In the Free tier, you can send emails to your own email address. To send to others, you'll need to verify a domain in Resend.
 
 ✅ **Wait for it to go Live.** Copy your backend URL (e.g., `https://email-scheduler-api.onrender.com`).
 
