@@ -48,11 +48,18 @@ export default function DashboardLayout({
 
         const fetchStats = async () => {
             try {
-                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/stats`)
+                const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '');
+                const response = await fetch(`${baseUrl}/api/stats`)
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const data = await response.json()
                 setStats({ scheduled: data.scheduled || 0, sent: data.sent || 0 })
-            } catch (error) {
-                console.error('Error fetching stats:', error)
+            } catch (error: any) {
+                console.error('Error fetching stats in layout:', error.message)
+                // We keep the old stats instead of resetting to 0 to avoid jitter
             }
         }
 

@@ -9,7 +9,29 @@ const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Error handling middleware for JSON/Payload errors (prevents HTML error pages)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err.type === 'entity.too.large' || err.status === 413) {
+        console.error('[PAYLOAD ERROR]: Request body exceeds limit.');
+        return res.status(413).json({
+            error: 'Payload too large',
+            message: 'The request body exceeds the 100MB limit. Please reduce the size of your CSV or content.'
+        });
+    }
+    if (err instanceof SyntaxError && 'body' in err) {
+        return res.status(400).json({ error: 'Invalid JSON payload' });
+    }
+    next(err);
+});
+
+// Global internal error handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('[GLOBAL ERROR]:', err);
+    res.status(500).json({ error: 'Internal Server Error', message: err.message });
+});
 
 // API: Schedule Batch Emails (Staggered)
 app.post('/api/schedule', async (req, res) => {
@@ -147,4 +169,14 @@ app.get('/api/health', async (req, res) => {
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`Worker status: ${emailWorker.isRunning() ? 'Running' : 'Stopped'}`);
+});
+
+// Final fallback for unhandled exceptions to prevent the server from crashing completely
+process.on('uncaughtException', (err) => {
+    console.error('[UNCAUGHT EXCEPTION]:', err);
+    // In production, you might want to restart the process gracefully, but for dev we'll keep it alive if possible
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[UNHANDLED REJECTION]:', reason);
 });

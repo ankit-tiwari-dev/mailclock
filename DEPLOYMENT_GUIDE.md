@@ -64,8 +64,9 @@ We will use **Vercel** to host the Next.js Frontend.
 1. **Framework Preset**: `Next.js` (Auto-detected).
 2. **Root Directory**: Click "Edit" and select `client`.
 3. **Environment Variables**:
-    - `NEXT_PUBLIC_API_URL`: (Paste your Render Backend URL, NO trailing slash)
-        - Example: `https://email-scheduler-api.onrender.com`
+    - `NEXT_PUBLIC_API_URL`: (Paste your Render Backend URL. **DO NOT** add `/api` at the end)
+        - Example: `https://email-scheduler-api.onrender.com` (Correct)
+        - Avoid: `https://email-scheduler-api.onrender.com/api` (Wrong)
     - `NEXTAUTH_URL`: (Leave empty for now, Vercel sets this for you)
     - `NEXTAUTH_SECRET`: (Generate a random string, e.g. `openssl rand -base64 32`)
     - `GOOGLE_CLIENT_ID`: (Your Google OAuth ID)

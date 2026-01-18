@@ -26,7 +26,7 @@ export default function EmailViewPage() {
 
         const fetchEmail = async () => {
             try {
-                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/jobs/${emailId}`)
+                const response = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '')}/api/jobs/${emailId}`)
                 const data = await response.json()
                 setEmail(data)
             } catch (error) {

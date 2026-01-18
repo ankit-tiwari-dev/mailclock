@@ -36,9 +36,21 @@ export default function Dashboard() {
         if (status !== "authenticated") return;
 
         const interval = setInterval(() => {
-            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/jobs`).then(res => res.json()).then(data => setJobs(data))
-            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/stats`).then(res => res.json()).then(data => setStats(data))
-            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/health`).then(res => res.json()).then(data => setSystemStatus(data))
+            const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '');
+
+            const safeFetch = (endpoint: string, setter: (data: any) => void) => {
+                fetch(`${baseUrl}${endpoint}`)
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        return res.json();
+                    })
+                    .then(data => setter(data))
+                    .catch(err => console.error(`Error fetching ${endpoint}:`, err.message));
+            };
+
+            safeFetch('/api/jobs', setJobs);
+            safeFetch('/api/stats', setStats);
+            safeFetch('/api/health', setSystemStatus);
         }, 2000)
         return () => clearInterval(interval)
     }, [status])
