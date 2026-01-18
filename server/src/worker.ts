@@ -10,28 +10,51 @@ let cachedTransporter: any = null;
 const getTransporter = async () => {
     if (cachedTransporter) return cachedTransporter;
 
+    // Support for custom SMTP via environment variables
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+        console.log('Using custom SMTP credentials...');
+        cachedTransporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',
+            port: parseInt(process.env.SMTP_PORT || '587'),
+            secure: process.env.SMTP_SECURE === 'true',
+            auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS,
+            },
+            pool: true,
+            connectionTimeout: 10000,
+        });
+        await cachedTransporter.verify();
+        return cachedTransporter;
+    }
+
     console.log('Generating Ethereal account...');
     try {
         const testAccount = await nodemailer.createTestAccount();
+        console.log(`Ethereal account generated: ${testAccount.user}`);
+
         cachedTransporter = nodemailer.createTransport({
             host: 'smtp.ethereal.email',
-            port: 465, // Use SSL for production reliability
-            secure: true,
+            port: 587, // STARTTLS often more reliable than 465 on some cloud providers
+            secure: false,
             auth: {
                 user: testAccount.user,
                 pass: testAccount.pass,
             },
-            connectionTimeout: 10000, // 10 seconds
-            greetingTimeout: 5000,
-            socketTimeout: 10000,
+            pool: true, // Reuse connections
+            maxConnections: 5,
+            maxMessages: 100,
+            connectionTimeout: 15000, // Increase to 15s
+            greetingTimeout: 10000,
+            socketTimeout: 20000,
         });
 
-        // Verify connection immediately
+        console.log('Verifying SMTP connection...');
         await cachedTransporter.verify();
         console.log('Transporter ready!');
         return cachedTransporter;
     } catch (error) {
-        console.error('Failed to create transporter:', error);
+        console.error('SMTP Setup Failed:', error);
         throw error;
     }
 };
