@@ -96,14 +96,14 @@ export default function Home() {
                 placeholder="Email ID"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-12 bg-slate-50 border-slate-200 rounded-lg text-sm placeholder:text-slate-400"
+                className="h-12 bg-white border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400"
               />
               <Input
                 type="password"
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="h-12 bg-slate-50 border-slate-200 rounded-lg text-sm placeholder:text-slate-400"
+                className="h-12 bg-white border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400"
               />
             </div>
 
