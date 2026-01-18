@@ -178,6 +178,16 @@ app.get('/api/health', async (req, res) => {
     }
 });
 
+// API: Cleanup - Delete all jobs (useful for resetting demo)
+app.delete('/api/cleanup', async (req, res) => {
+    try {
+        await prisma.emailJob.deleteMany({});
+        res.json({ message: 'All jobs cleared successfully' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to clear jobs' });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`Worker status: ${emailWorker.isRunning() ? 'Running' : 'Stopped'}`);

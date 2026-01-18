@@ -9,7 +9,8 @@ import {
     Calendar,
     Layers,
     Plus,
-    Search
+    Search,
+    RotateCcw
 } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
@@ -31,29 +32,47 @@ export default function Dashboard() {
         }
     }, [status])
 
+    const fetchAll = () => {
+        const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '');
+
+        const safeFetch = (endpoint: string, setter: (data: any) => void) => {
+            fetch(`${baseUrl}${endpoint}`)
+                .then(res => {
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return res.json();
+                })
+                .then(data => setter(data))
+                .catch(err => console.error(`Error fetching ${endpoint}:`, err.message));
+        };
+
+        safeFetch('/api/jobs', setJobs);
+        safeFetch('/api/stats', setStats);
+        safeFetch('/api/health', setSystemStatus);
+    };
+
     // Fetch real-time feed
     useEffect(() => {
         if (status !== "authenticated") return;
 
-        const interval = setInterval(() => {
-            const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '');
-
-            const safeFetch = (endpoint: string, setter: (data: any) => void) => {
-                fetch(`${baseUrl}${endpoint}`)
-                    .then(res => {
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                        return res.json();
-                    })
-                    .then(data => setter(data))
-                    .catch(err => console.error(`Error fetching ${endpoint}:`, err.message));
-            };
-
-            safeFetch('/api/jobs', setJobs);
-            safeFetch('/api/stats', setStats);
-            safeFetch('/api/health', setSystemStatus);
-        }, 2000)
+        const interval = setInterval(fetchAll, 2000)
         return () => clearInterval(interval)
     }, [status])
+
+    const handleReset = async () => {
+        if (!confirm("Are you sure you want to clear all dispatch history? This cannot be undone.")) return;
+
+        try {
+            const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '');
+            const response = await fetch(`${baseUrl}/api/cleanup`, { method: 'DELETE' });
+            if (response.ok) {
+                setJobs([]);
+                setStats({ scheduled: 0, sent: 0, failed: 0, pending: 0 });
+                alert("Dashboard reset successfully! All stuck jobs cleared.");
+            }
+        } catch (error) {
+            console.error("Failed to reset:", error);
+        }
+    }
 
     const filteredJobs = jobs.filter(job => {
         // Tab Filter
@@ -181,6 +200,13 @@ export default function Dashboard() {
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-colors ${activeTab === 'sent' ? 'bg-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                             History
+                        </button>
+                        <button
+                            onClick={handleReset}
+                            className="ml-4 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Reset Dashboard"
+                        >
+                            <RotateCcw className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
