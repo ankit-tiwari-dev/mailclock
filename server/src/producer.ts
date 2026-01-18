@@ -2,7 +2,7 @@ import { Queue } from 'bullmq';
 import { ConnectionOptions } from 'bullmq';
 
 const connection: ConnectionOptions = {
-    host: process.env.REDIS_HOST || 'localhost',
+    host: (process.env.REDIS_HOST || 'localhost').replace(/^redis:\/\//, ''),
     port: parseInt(process.env.REDIS_PORT || '6379'),
 };
 

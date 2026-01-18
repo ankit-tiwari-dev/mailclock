@@ -85,7 +85,7 @@ export const emailWorker = new Worker(
     },
     {
         connection: {
-            host: process.env.REDIS_HOST || 'localhost',
+            host: (process.env.REDIS_HOST || 'localhost').replace(/^redis:\/\//, ''),
             port: parseInt(process.env.REDIS_PORT || '6379'),
         },
         concurrency: parseInt(process.env.WORKER_CONCURRENCY || '5'),

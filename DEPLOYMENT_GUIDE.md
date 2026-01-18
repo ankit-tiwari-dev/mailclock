@@ -20,7 +20,7 @@ We will use **Render** to host the Node.js API, PostgreSQL Database, and Redis.
 6. **Copy** the `Internal DB URL` (for later) and `External DB URL` (to check from your PC).
 
 ### 3. Create Redis Interface
-1. Click **New +** -> **Redis**.
+1. Click **New +** -> **Key Value** (this is Redis).
 2. **Name**: `email-scheduler-redis`.
 3. **Region**: Same as Postgres.
 4. **Plan**: `Free`.
@@ -38,7 +38,7 @@ We will use **Render** to host the Node.js API, PostgreSQL Database, and Redis.
 8. **Plan**: `Free`.
 9. **Environment Variables** (Add these):
     - `DATABASE_URL`: (Paste Internal DB URL from Step 2)
-    - `REDIS_HOST`: (Hostname from Redis Internal URL, e.g. `red-xxxx`)
+    - `REDIS_HOST`: (Hostname ONLY, e.g. `red-xxxx`. **Do NOT** include `redis://` or port)
     - `REDIS_PORT`: `6379`
     - `PORT`: `4000`
     - `WORKER_CONCURRENCY`: `5`
