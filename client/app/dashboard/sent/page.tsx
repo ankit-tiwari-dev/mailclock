@@ -29,7 +29,7 @@ export default function SentPage() {
 
         const fetchJobs = async () => {
             try {
-                const response = await fetch('http://localhost:4000/api/jobs')
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/jobs`)
                 const data = await response.json()
                 // Filter only sent and failed emails
                 const sentJobs = data.filter((job: any) => ['SENT', 'FAILED'].includes(job.status))

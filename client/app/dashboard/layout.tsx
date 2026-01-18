@@ -48,7 +48,7 @@ export default function DashboardLayout({
 
         const fetchStats = async () => {
             try {
-                const response = await fetch('http://localhost:4000/api/stats')
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/stats`)
                 const data = await response.json()
                 setStats({ scheduled: data.scheduled || 0, sent: data.sent || 0 })
             } catch (error) {
