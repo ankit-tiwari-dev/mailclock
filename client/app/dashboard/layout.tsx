@@ -68,14 +68,9 @@ export default function DashboardLayout({
         return () => clearInterval(interval)
     }, [status])
 
-    if (status === "loading") {
-        return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading Auth...</div>
-    }
-
-    if (status === "unauthenticated") {
-        // Handle redirect in wrapper or page, but layout creates context
-        // Ideally should be handled by middleware or page protection
-    }
+    // If status is loading, we still show the layout shell but with placeholders to improve LCP
+    const isLoading = status === "loading";
+    const isAuthenticated = status === "authenticated";
 
     return (
         <div className="min-h-screen bg-[#F9FAFB] text-slate-800 font-sans selection:bg-green-500/30 antialiased">
@@ -115,17 +110,27 @@ export default function DashboardLayout({
                 <div className="bg-white border border-slate-200 rounded-xl p-3 mb-4 group hover:shadow-sm transition-all cursor-default relative">
                     <div className="flex items-center space-x-2.5">
                         <div className="w-9 h-9 rounded-full overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center flex-shrink-0">
-                            {session?.user?.image ? (
+                            {isLoading ? (
+                                <div className="w-full h-full bg-slate-100 animate-pulse" />
+                            ) : session?.user?.image ? (
                                 <img src={session.user.image} alt="Avatar" className="w-full h-full object-cover" />
                             ) : (
                                 <span className="text-xs font-bold text-slate-600">{session?.user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}</span>
                             )}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-slate-900 truncate">{session?.user?.name || "Oliver Brown"}</p>
-                            <p className="text-[10px] text-slate-500 truncate">{session?.user?.email || "oliver.brown@domain.io"}</p>
+                            {isLoading ? (
+                                <div className="space-y-1">
+                                    <div className="h-2 w-16 bg-slate-100 rounded animate-pulse" />
+                                    <div className="h-1.5 w-24 bg-slate-50 rounded animate-pulse" />
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-xs font-semibold text-slate-900 truncate">{session?.user?.name || "User"}</p>
+                                    <p className="text-[10px] text-slate-500 truncate">{session?.user?.email || "loading..."}</p>
+                                </>
+                            )}
                         </div>
-                        <ChevronLeft className="w-3.5 h-3.5 text-slate-400 -rotate-90 flex-shrink-0" />
                     </div>
                 </div>
 
@@ -189,7 +194,16 @@ export default function DashboardLayout({
 
 
                 <main>
-                    {children}
+                    {isLoading ? (
+                        <div className="p-6 md:p-10 space-y-8 animate-in fade-in duration-500">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="h-32 bg-white rounded-2xl border border-slate-100 shadow-sm animate-pulse" />
+                                ))}
+                            </div>
+                            <div className="h-96 bg-white rounded-2xl border border-slate-100 shadow-sm animate-pulse" />
+                        </div>
+                    ) : children}
                 </main>
             </div>
         </div>

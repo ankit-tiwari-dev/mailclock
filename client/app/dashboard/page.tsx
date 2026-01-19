@@ -99,7 +99,7 @@ export default function Dashboard() {
     });
 
     if (status === "loading") {
-        return <div className="min-h-screen bg-white flex items-center justify-center text-white">Loading Auth...</div>
+        return null; // Layout handles skeleton
     }
 
     return (

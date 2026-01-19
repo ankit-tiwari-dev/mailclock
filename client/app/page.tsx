@@ -46,7 +46,15 @@ export default function Home() {
   }, [status, router])
 
   if (status === "loading") {
-    return <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center text-slate-900">Loading Auth...</div>
+    return (
+      <div className="min-h-screen bg-[#F5F5F5] flex flex-col items-center justify-center p-4">
+        <div className="bg-white rounded-2xl p-10 shadow-sm flex flex-col items-center animate-pulse">
+          <div className="w-12 h-12 bg-[#00A86B]/20 rounded-xl mb-4" />
+          <div className="h-6 w-32 bg-slate-100 rounded mb-6" />
+          <div className="h-4 w-48 bg-slate-50 rounded" />
+        </div>
+      </div>
+    )
   }
 
   return (
