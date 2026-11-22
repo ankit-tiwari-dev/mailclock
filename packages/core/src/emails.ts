@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, prisma, type Email, type EmailEventType, type EmailSource, type EmailStatus } from "@mailclock/db";
 import { MailclockError } from "./errors";
-import { createdEvent, insertEmails, moveEmail, readEvents, type EmailEventInput } from "./lifecycle";
+import { createdEvent, insertEmails, moveAllEmails, moveEmail, readEvents, type EmailEventInput } from "./lifecycle";
 import { PENDING_STATUSES, allowedActions } from "./status";
 import type { CreateBatch, CreateEmail, ListEmailsQuery } from "./schemas";
 
@@ -198,6 +198,15 @@ export function cancelEmail(ctx: ActorContext, id: string) {
 
 export function retryEmail(ctx: ActorContext, id: string) {
   return transition(ctx, id, ["FAILED"], { status: "SCHEDULED", attempts: 0, nextAttemptAt: new Date() }, { type: "RETRY_REQUESTED", data: null });
+}
+
+/** Re-queues up to 1,000 failed emails in one transaction. Returns how many were re-queued. */
+export function retryAllFailed(ctx: ActorContext) {
+  return moveAllEmails(
+    { projectId: ctx.projectId, from: ["FAILED"], limit: 1000 },
+    { status: "SCHEDULED", attempts: 0, nextAttemptAt: new Date() },
+    { type: "RETRY_REQUESTED", data: null, actor: ctx.actor },
+  );
 }
 
 export async function getStats(projectId: string) {

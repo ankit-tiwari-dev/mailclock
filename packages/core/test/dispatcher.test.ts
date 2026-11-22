@@ -13,6 +13,7 @@ import {
   parseWorkerEnv,
   readEvents,
   rescheduleEmail,
+  retryAllFailed,
   retryEmail,
   scheduleBatch,
   scheduleEmail,
@@ -131,6 +132,19 @@ describe("failures", () => {
     const retried = await retryEmail(ctx, email.id);
     expect(retried.status).toBe("SCHEDULED");
     expect(retried.attempts).toBe(0);
+  });
+
+  it("re-queues all failed emails at once, one event each, and only in the actor's project", async () => {
+    await scheduleBatch(ctx, { emails: [input({ to: "bounce@example.com" }), input({ to: "bounce@example.com" }), input()] });
+    await dispatch();
+    const otherProject = await prisma.project.create({ data: { name: "Other", ownerId: "u1" } });
+
+    expect(await retryAllFailed({ ...ctx, projectId: otherProject.id })).toBe(0);
+    expect(await retryAllFailed(ctx)).toBe(2);
+
+    expect(await prisma.email.count({ where: { status: "FAILED" } })).toBe(0);
+    expect(await prisma.email.count({ where: { status: "SCHEDULED", attempts: 0 } })).toBe(2);
+    expect(await prisma.emailEvent.count({ where: { type: "RETRY_REQUESTED", actor: ctx.actor } })).toBe(2);
   });
 
   it("reclaims an email whose lease expired (crashed worker)", async () => {

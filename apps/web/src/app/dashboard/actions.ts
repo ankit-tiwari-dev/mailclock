@@ -10,6 +10,7 @@ import {
   createProvider,
   deleteProvider,
   rescheduleEmail,
+  retryAllFailed,
   retryEmail,
   revokeApiKey,
   scheduleBatch,
@@ -17,10 +18,10 @@ import {
   verifyProviderConfig,
   type ActorContext,
 } from "@mailclock/core";
-import { prisma, type ProviderType } from "@mailclock/db";
+import type { ProviderType } from "@mailclock/db";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { ZodError } from "zod";
 import { PROJECT_COOKIE, requireProject } from "@/lib/session";
 
@@ -32,6 +33,9 @@ async function actorContext(): Promise<ActorContext> {
 }
 
 function toError(err: unknown): { ok: false; error: string } {
+  // Let Next.js handle its own control flow (e.g. the redirect to /login when a session expired)
+  // instead of reporting it as "Something went wrong".
+  unstable_rethrow(err);
   if (err instanceof MailclockError) return { ok: false, error: err.message };
   if (err instanceof ZodError) {
     const issue = err.issues[0];
@@ -64,14 +68,7 @@ export async function retryEmailAction(id: string) {
 /** Re-queues every failed email in the project (up to 1,000 at a time). */
 export async function retryAllFailedAction() {
   return run(async () => {
-    const ctx = await actorContext();
-    const failed = await prisma.email.findMany({
-      where: { projectId: ctx.projectId, status: "FAILED" },
-      select: { id: true },
-      take: 1000,
-    });
-    for (const { id } of failed) await retryEmail(ctx, id);
-    return { count: failed.length };
+    return { count: await retryAllFailed(await actorContext()) };
   });
 }
 

@@ -51,7 +51,7 @@ export async function insertEmails(rows: (Prisma.EmailCreateManyInput & { id: st
     const emails = await tx.email.createManyAndReturn({ data: rows });
     await tx.emailEvent.createMany({ data: events });
     return emails;
-  });
+  }, BULK_TX);
   // RETURNING order is not guaranteed; restore input order.
   const byId = new Map(inserted.map((e) => [e.id, e]));
   return rows.map((r) => byId.get(r.id)!);
@@ -61,6 +61,12 @@ export async function insertEmails(rows: (Prisma.EmailCreateManyInput & { id: st
 export function readEvents(rows: { type: EmailEventType; data: unknown; actor: string | null; createdAt: Date }[]): EmailEventView[] {
   return rows.map((r) => ({ type: r.type, data: r.data, actor: r.actor, at: r.createdAt }) as EmailEventView);
 }
+
+/**
+ * Bulk writes (up to 1,000 rows) get more than Prisma's 5s default: a cold or busy database
+ * (serverless Postgres waking up) can take longer, and a timeout here fails the whole batch.
+ */
+const BULK_TX = { maxWait: 10_000, timeout: 30_000 } as const;
 
 // ─── Moves ───────────────────────────────────────────────────────────────────
 
@@ -94,6 +100,31 @@ export async function moveEmail(guard: MoveGuard, patch: Prisma.EmailUncheckedUp
     if (events.length) await tx.emailEvent.createMany({ data: events.map((e) => toRow(guard.id, e)) });
     return true;
   });
+}
+
+/**
+ * Moves every email matching the guard (by status, within one project) at once, recording one
+ * event per email moved, in one transaction. Rows are locked first so the event rows describe
+ * exactly the emails that moved. Returns how many moved.
+ */
+export async function moveAllEmails(
+  guard: { projectId: string; from: readonly EmailStatus[]; limit: number },
+  patch: Prisma.EmailUncheckedUpdateManyInput,
+  event: EmailEventInput,
+): Promise<number> {
+  return prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM email
+      WHERE "projectId" = ${guard.projectId}::uuid AND status::text = ANY(${[...guard.from]})
+      ORDER BY "updatedAt" DESC
+      LIMIT ${guard.limit}
+      FOR UPDATE SKIP LOCKED`;
+    if (rows.length === 0) return 0;
+    const ids = rows.map((r) => r.id);
+    await tx.email.updateMany({ where: { id: { in: ids } }, data: patch });
+    await tx.emailEvent.createMany({ data: ids.map((id) => toRow(id, event)) });
+    return ids.length;
+  }, BULK_TX);
 }
 
 /**

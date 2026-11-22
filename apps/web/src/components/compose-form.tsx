@@ -1,6 +1,5 @@
 "use client";
 
-import Papa from "papaparse";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { scheduleFromDashboard } from "@/app/dashboard/actions";
@@ -40,7 +39,9 @@ export function ComposeForm({ providers }: { providers: ProviderOption[] }) {
   const staggerSeconds = Number(stagger) || 0;
   const lastSendMinutes = Math.round(((valid.length - 1) * staggerSeconds) / 60);
 
-  function importCsv(file: File) {
+  async function importCsv(file: File) {
+    // Loaded only when someone actually imports a CSV.
+    const { default: Papa } = await import("papaparse");
     Papa.parse<string[]>(file, {
       skipEmptyLines: true,
       complete: (res) => {

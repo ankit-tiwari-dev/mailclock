@@ -3,18 +3,47 @@
 import { Check, Copy } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/cn";
 
-/** Re-fetches server components on an interval while the tab is visible. */
+/**
+ * Re-fetches server components while the tab is visible: immediately when it becomes visible
+ * again, then every `intervalMs`. Polling stops while hidden, and a tick is skipped while the
+ * previous refresh is still in flight, so slow responses never stack up.
+ */
 export function AutoRefresh({ intervalMs = 5000 }: { intervalMs?: number }) {
   const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const pendingRef = useRef(false);
   useEffect(() => {
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") router.refresh();
-    }, intervalMs);
-    return () => clearInterval(id);
+    pendingRef.current = pending;
+  }, [pending]);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const tick = () => {
+      if (!pendingRef.current) startTransition(() => router.refresh());
+    };
+    const start = () => {
+      timer ??= setInterval(tick, intervalMs);
+    };
+    const stop = () => {
+      clearInterval(timer);
+      timer = undefined;
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        tick();
+        start();
+      } else stop();
+    };
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [router, intervalMs]);
   return null;
 }

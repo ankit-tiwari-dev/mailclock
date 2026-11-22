@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   cancelEmailAction,
@@ -14,14 +13,13 @@ import type { EmailStatus } from "@mailclock/db";
 import { Button, Input, Notice } from "@/components/ui";
 
 function useAction() {
-  const router = useRouter();
   const [pending, start] = useTransition();
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const runAction = (fn: () => Promise<ActionResult<unknown>>) =>
     start(async () => {
       const r = await fn();
+      // The server action revalidates the dashboard, so no extra refresh round trip is needed.
       setResult(r);
-      router.refresh();
     });
   return { pending, result, runAction };
 }
