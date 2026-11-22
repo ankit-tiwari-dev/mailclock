@@ -101,9 +101,10 @@ To scale sending, run more workers: `docker compose --profile app up -d --scale 
    ```
 2. Import the repo in Vercel and set **Root Directory** to `apps/web`.
 3. Add environment variables: `DATABASE_URL`, `BETTER_AUTH_URL` (your Vercel URL), `BETTER_AUTH_SECRET`, `MAILCLOCK_ENCRYPTION_KEY`, and `CRON_SECRET`.
-4. Deploy. `apps/web/vercel.json` registers a cron that calls `/api/cron/dispatch` every minute.
-
-> Every-minute crons need a Vercel Pro plan. On Hobby, either run `apps/worker` on another host (Railway, Fly, Render) pointed at the same database, or call `/api/cron/dispatch` from an external scheduler with `Authorization: Bearer $CRON_SECRET`.
+4. Deploy. The Vercel Hobby plan only allows a daily cron, so `apps/web/vercel.json` registers `/api/cron/dispatch` once a day as a safety net. For every-minute sending, either:
+   - call `https://<your-app>/api/cron/dispatch` every minute from an external scheduler (for example cron-job.org) with the header `Authorization: Bearer <CRON_SECRET>`, or
+   - run `apps/worker` on an always-on host (Railway, Fly, Render) pointed at the same database, or
+   - on Vercel Pro, change the schedule in `apps/web/vercel.json` to `* * * * *`.
 
 ## Using the API
 
