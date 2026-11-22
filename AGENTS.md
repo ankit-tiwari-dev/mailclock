@@ -17,6 +17,8 @@ Each rule exists because the mistake happened here at least twice. Prefer the en
 | No suppressions, stubs, skipped tests, removed assertions, or weakened `CONSTRAINTS.md` | — (the floor) | `npm run check:floor` |
 | No secret-shaped strings, even in tests | A test used `sk_live_…` as a "wrong prefix" key and tripped the secret scanner | `npm run check:security -- secrets` (CI) |
 
+If a rule genuinely cannot apply to one line, add a row to the Exceptions table in CONSTRAINTS.md and reference it on that line (`// ownership-allow W3`). Do not invent an approval in a code comment; the check only accepts table rows, and the floor guard makes every new row visible in review.
+
 ### Judgment calls (nothing enforces these)
 
 - When you start a long-running dev process in the background, start it so that stopping it stops the server (e.g. `exec node …`), and check the port is free afterwards. Wrapper processes (`npx`, `npm run`) left orphaned servers holding ports and locking `node_modules` three times.

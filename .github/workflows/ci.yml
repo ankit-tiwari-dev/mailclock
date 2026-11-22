@@ -1,6 +1,7 @@
 # Mirrors CONSTRAINTS.md. If this file and CONSTRAINTS.md disagree, CONSTRAINTS.md wins.
-# "warn until" checks run through scripts/warn-until.mjs, which turns a violation into a warning
-# before the date and blocks on and after it; a check that cannot run always fails.
+# "warn until" checks run through scripts/warn-until.mjs, which reads the date from CONSTRAINTS.md,
+# turns a violation into a warning before it and blocks on and after it; a check that cannot run
+# always fails.
 name: CI
 
 on:
@@ -16,7 +17,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  WARN_UNTIL: "2026-12-06"
   NODE_VERSION: "22"
 
 jobs:
@@ -38,10 +38,10 @@ jobs:
         run: node scripts/floor-guard.mjs --base "origin/$BASE_REF"
       - name: Self-tests for the checks (blocking)
         run: node --test scripts/checks.test.mjs
-      - name: Ownership rules (warn until ${{ env.WARN_UNTIL }})
+      - name: Ownership rules (warns until the CONSTRAINTS.md date)
         env:
           BASE_REF: ${{ github.base_ref || 'main' }}
-        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/ownership-check.mjs --base "origin/$BASE_REF"
+        run: node scripts/warn-until.mjs -- node scripts/ownership-check.mjs --base "origin/$BASE_REF"
 
   check:
     name: Types, tests, coverage, build
@@ -75,10 +75,10 @@ jobs:
         run: npm run typecheck
       - name: Tests with coverage (blocking)
         run: npm run test:coverage --workspace @mailclock/core
-      - name: Coverage gate (warn until ${{ env.WARN_UNTIL }})
+      - name: Coverage gate (warns until the CONSTRAINTS.md date)
         env:
           BASE_REF: ${{ github.base_ref || 'main' }}
-        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/coverage-gate.mjs packages/core/coverage/lcov.info --base "origin/$BASE_REF"
+        run: node scripts/warn-until.mjs -- node scripts/coverage-gate.mjs packages/core/coverage/lcov.info --base "origin/$BASE_REF"
       - name: Build web
         run: npm run build --workspace @mailclock/web
         env:
@@ -97,8 +97,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - name: dependency-cruiser (warn until ${{ env.WARN_UNTIL }})
-        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/arch-check.mjs
+      - name: dependency-cruiser (warns until the CONSTRAINTS.md date)
+        run: node scripts/warn-until.mjs -- node scripts/arch-check.mjs
 
   security:
     name: Security scans
@@ -114,10 +114,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - name: Secrets, gitleaks (blocking)
         run: node scripts/security-scan.mjs secrets
-      - name: Dependencies, osv-scanner (warn until ${{ env.WARN_UNTIL }})
-        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/security-scan.mjs deps
-      - name: Code, Semgrep (warn until ${{ env.WARN_UNTIL }})
-        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/security-scan.mjs code
+      - name: Dependencies, osv-scanner (warns until the CONSTRAINTS.md date)
+        run: node scripts/warn-until.mjs -- node scripts/security-scan.mjs deps
+      - name: Code, Semgrep (warns until the CONSTRAINTS.md date)
+        run: node scripts/warn-until.mjs -- node scripts/security-scan.mjs code
 
   accessibility:
     name: Accessibility (axe)
@@ -157,7 +157,7 @@ jobs:
           npm run start --workspace @mailclock/web > web.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:3000/api/health && exit 0; sleep 1; done
           cat web.log; exit 2
-      - name: axe-core on 10 pages (warn until ${{ env.WARN_UNTIL }})
+      - name: axe-core on 10 pages (warns until the CONSTRAINTS.md date)
         run: |
           mkdir -p .reports
-          node scripts/a11y-scan.mjs > .reports/axe-results.json && node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/quality-gate.mjs axe .reports/axe-results.json
+          node scripts/a11y-scan.mjs > .reports/axe-results.json && node scripts/warn-until.mjs -- node scripts/quality-gate.mjs axe .reports/axe-results.json

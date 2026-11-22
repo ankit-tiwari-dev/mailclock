@@ -70,4 +70,4 @@ When a number improves, update it here in the same PR. The five known architectu
 | ID | Rule | Path | Reason | Owner | Expires |
 |---|---|---|---|---|---|
 
-None. A new row needs an owner, an expiry ≤ 90 days out, and a reason discussed in review; the floor guard flags every new row.
+None. A new row needs an owner, an expiry ≤ 90 days out, and a reason discussed in review; the floor guard flags every new row, so a human approves it. Code that uses an exception references its ID on the line (`// ownership-allow W3`); the ownership check accepts it only for that row's rule and path, until it expires.

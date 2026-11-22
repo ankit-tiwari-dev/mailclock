@@ -17,6 +17,24 @@ const SCRIPTS = dirname(fileURLToPath(import.meta.url));
 // under the guard (rather than in .constraintsignore) keeps its own assertions protected.
 const TS_IGNORE = "// @ts-" + "ignore";
 const IT_SKIP = "it." + "skip";
+
+/** A CONSTRAINTS.md with the parts the checks read: a threshold, a warning date, a ratchet, exceptions. */
+const constraintsMd = ({ threshold = 80, warnUntil = "2099-01-01" } = {}) =>
+  [
+    "| Dimension | Rule | Mode |",
+    "|---|---|---|",
+    `| Coverage | Changed lines ≥ ${threshold}% covered | warn until ${warnUntil}, then block |`,
+    "",
+    "| Metric | Today |",
+    "|---|---|",
+    "| Core line coverage | 50.00% | must not fall |",
+    "",
+    "| ID | Rule | Path | Reason | Owner | Expires |",
+    "|---|---|---|---|---|---|",
+    "| W1 | api-key-auth | apps/web/src/x.ts | Migration shim | @owner | 2099-01-01 |",
+    "| W2 | api-key-auth | apps/web/src/old.ts | Old shim | @owner | 2000-01-01 |",
+    "",
+  ].join("\n");
 let repo;
 
 const git = (...args) => execFileSync("git", args, { cwd: repo, stdio: "ignore" });
@@ -47,7 +65,7 @@ before(() => {
   write(".constraintsignore", "scripts/floor-guard.mjs\n");
   write("packages/core/src/lifecycle.ts", "export const x = 1;\n");
   write("packages/core/test/a.test.ts", 'it("works", () => {\n  expect(1).toBe(1);\n});\n');
-  write("CONSTRAINTS.md", "| Dimension | Rule |\n|---|---|\n| Coverage | Changed lines ≥ 80% covered |\n\n| Metric | Today |\n|---|---|\n| Core line coverage | 50.00% | must not fall |\n");
+  write("CONSTRAINTS.md", constraintsMd());
   git("add", "-A");
   git("commit", "-qm", "base");
 });
@@ -84,23 +102,21 @@ describe("ownership-check (replays mistakes made in this repo)", () => {
     withChange({ "packages/core/src/lifecycle.ts": "export const x = 1;\nawait tx.emailEvent.createMany({ data });\n" }, () =>
       assert.equal(check(), 0)));
 
-  it("accepts a complete, unexpired, approved exception", () =>
-    withChange(
-      {
-        "apps/web/src/x.ts":
-          "// ownership-allow api-key-auth: migration shim (expires 2099-01-01, approved-by @ankit-tiwari-dev)\nverifyApiKey(t);\n",
-      },
-      () => assert.equal(check(), 0),
-    ));
+  it("accepts an exception that references an unexpired CONSTRAINTS.md row for this rule and path", () =>
+    withChange({ "apps/web/src/x.ts": "// ownership-allow W1\nverifyApiKey(t);\n" }, () => assert.equal(check(), 0)));
 
-  it("rejects an expired exception", () =>
-    withChange(
-      { "apps/web/src/x.ts": "// ownership-allow api-key-auth: old shim (expires 2000-01-01, approved-by @someone)\nverifyApiKey(t);\n" },
-      () => assert.equal(check(), 1),
-    ));
+  it("rejects an expired exception row", () =>
+    withChange({ "apps/web/src/old.ts": "// ownership-allow W2\nverifyApiKey(t);\n" }, () => assert.equal(check(), 1)));
 
-  it("rejects an exception with no approver", () =>
-    withChange({ "apps/web/src/x.ts": "// ownership-allow api-key-auth: trust me\nverifyApiKey(t);\n" }, () => assert.equal(check(), 1)));
+  it("rejects an exception used outside the path its row covers", () =>
+    withChange({ "apps/web/src/elsewhere.ts": "// ownership-allow W1\nverifyApiKey(t);\n" }, () => assert.equal(check(), 1)));
+
+  it("rejects a self-approved exception with no CONSTRAINTS.md row (sharp edges, 2026-11-22)", () =>
+    withChange({ "apps/web/src/x.ts": "// ownership-allow api-key-auth: trust me (expires 2099-01-01, approved-by @me)\nverifyApiKey(t);\n" }, () =>
+      assert.equal(check(), 1)));
+
+  it("rejects a reference to a row that does not exist", () =>
+    withChange({ "apps/web/src/x.ts": "// ownership-allow W9\nverifyApiKey(t);\n" }, () => assert.equal(check(), 1)));
 
   it("reports 'could not run' for a bad base, never a pass", () => assert.equal(run("ownership-check.mjs", "--base", "nope"), 2));
 });
@@ -115,10 +131,9 @@ describe("floor-guard", () => {
   it("rejects a removed assertion", () =>
     withChange({ "packages/core/test/a.test.ts": 'it("works", () => {\n});\n' }, () => assert.equal(check(), 1)));
   it("rejects a loosened threshold in CONSTRAINTS.md", () =>
-    withChange(
-      { "CONSTRAINTS.md": "| Dimension | Rule |\n|---|---|\n| Coverage | Changed lines ≥ 70% covered |\n\n| Metric | Today |\n|---|---|\n| Core line coverage | 50.00% | must not fall |\n" },
-      () => assert.equal(check(), 1),
-    ));
+    withChange({ "CONSTRAINTS.md": constraintsMd({ threshold: 70 }) }, () => assert.equal(check(), 1)));
+  it("rejects a pushed-back warning date in CONSTRAINTS.md (sharp edges, 2026-11-22)", () =>
+    withChange({ "CONSTRAINTS.md": constraintsMd({ warnUntil: "2100-06-01" }) }, () => assert.equal(check(), 1)));
   it("reports 'could not run' for a bad base", () => assert.equal(run("floor-guard.mjs", "--base", "nope"), 2));
 });
 
@@ -139,12 +154,16 @@ describe("coverage-gate", () => {
     withChange({ "packages/core/coverage/lcov.info/x": "" }, () => assert.equal(check(), 2)));
 });
 
-describe("warn-until", () => {
-  const wrap = (date, code) => run("warn-until.mjs", date, "--", "node", "-e", `process.exit(${code})`);
+describe("warn-until (date read from CONSTRAINTS.md)", () => {
+  const wrap = (warnUntil, code) =>
+    withChange({ "CONSTRAINTS.md": constraintsMd({ warnUntil }) }, () => run("warn-until.mjs", "--", "node", "-e", `process.exit(${code})`));
   it("downgrades a violation before the date", () => assert.equal(wrap("2099-01-01", 1), 0));
   it("blocks a violation on or after the date", () => assert.equal(wrap("2000-01-01", 1), 1));
   it("never downgrades 'could not run'", () => assert.equal(wrap("2099-01-01", 2), 2));
-  it("fails when the command cannot start", () => assert.equal(run("warn-until.mjs", "2099-01-01", "--", "no-such-binary-xyz"), 2));
+  it("fails when the command cannot start", () => assert.equal(run("warn-until.mjs", "--", "no-such-binary-xyz"), 2));
+  it("refuses to guess when CONSTRAINTS.md gives two different dates", () =>
+    withChange({ "CONSTRAINTS.md": `${constraintsMd()}| X | y | warn until 2100-01-01, then block |\n` }, () =>
+      assert.equal(run("warn-until.mjs", "--", "node", "-e", "process.exit(1)"), 2)));
 });
 
 describe("quality-gate (axe)", () => {

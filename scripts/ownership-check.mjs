@@ -5,13 +5,16 @@
 // not a wall of red, and every new line has to use the supported way. Each error names the
 // function to use instead. Rules and their reasons are listed in CLAUDE.md.
 //
-// Exception (rare): put on the offending line, or the line above it,
-//   // ownership-allow <rule>: <reason> (expires YYYY-MM-DD, approved-by @handle)
-// An allow without a reason, a future expiry, and an approver is itself a violation.
+// Exception (rare): add a row to the Exceptions table in CONSTRAINTS.md — the floor guard flags
+// every new row, so a human approves it in review — then reference it on the offending line, or
+// the line above it:  // ownership-allow W3
+// The row must name this rule, a path glob matching the file, and an expiry that has not passed.
+// (A free-text "approved-by @someone" in the code could be written by anyone, so it is not accepted.)
 //
 // Usage: node scripts/ownership-check.mjs [--base <ref>]   (default origin/main)
 // Exit: 0 clean, 1 violation, 2 could not run.
 import { readFileSync } from "node:fs";
+import { matchesGlob } from "node:path";
 import { DiffError, addedLines, repoRoot } from "./lib/diff.mjs";
 
 // A crash must never read as a violation (1) or a pass (0): it means the check did not run.
@@ -57,17 +60,39 @@ export const RULES = [
 ];
 
 const isChecked = (f) => /^(apps|packages)\/.*\.(m?[jt]sx?)$/.test(f) && !/(\.test\.|\/test\/|\/generated\/)/.test(f);
-const ALLOW = /ownership-allow\s+([\w-]+):\s*(.+?)\s*\(expires\s+(\d{4}-\d{2}-\d{2}),\s*approved-by\s+@[\w-]+\)/;
+/** Exceptions table rows from CONSTRAINTS.md: | ID | Rule | Path | Reason | Owner | Expires | */
+function readExceptions() {
+  let text = "";
+  try {
+    text = readFileSync("CONSTRAINTS.md", "utf8");
+  } catch {
+    return new Map();
+  }
+  const rows = new Map();
+  for (const line of text.split(/\r?\n/)) {
+    const cells = line.split("|").map((c) => c.trim().replace(/^`|`$/g, ""));
+    if (cells.length < 8 || !/^W\d+$/.test(cells[1] ?? "")) continue;
+    rows.set(cells[1], { rule: cells[2], path: cells[3], expires: cells[6] });
+  }
+  return rows;
+}
+const exceptions = readExceptions();
+const ALLOW = /ownership-allow\s+(W\d+)\b/;
 
 function allowFor(file, line, rule) {
   const lines = readFileSync(file, "utf8").split(/\r?\n/);
   for (const text of [lines[line - 1], lines[line - 2]]) {
     if (!text?.includes("ownership-allow")) continue;
-    const m = ALLOW.exec(text);
-    if (!m) return { ok: false, why: "malformed ownership-allow (needs: <rule>: <reason> (expires YYYY-MM-DD, approved-by @handle))" };
-    if (m[1] !== rule) continue;
-    if (m[3] < new Date().toISOString().slice(0, 10)) return { ok: false, why: `ownership-allow for ${rule} expired on ${m[3]}` };
-    return { ok: true, why: m[2] };
+    const id = ALLOW.exec(text)?.[1];
+    if (!id) return { ok: false, why: "ownership-allow must reference an Exceptions row in CONSTRAINTS.md, e.g. // ownership-allow W3" };
+    const row = exceptions.get(id);
+    if (!row) return { ok: false, why: `${id} is not in the Exceptions table in CONSTRAINTS.md` };
+    if (row.rule !== rule) continue;
+    if (!matchesGlob(file, row.path)) return { ok: false, why: `${id} covers ${row.path}, not ${file}` };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(row.expires) || row.expires < new Date().toISOString().slice(0, 10)) {
+      return { ok: false, why: `${id} expired (or has no valid expiry): ${row.expires}` };
+    }
+    return { ok: true, why: `exception ${id}` };
   }
   return null;
 }
