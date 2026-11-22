@@ -194,7 +194,7 @@ docker compose --profile app up -d`}
         <Logo />
         <p>
           Open source under the MIT licence.{" "}
-          <a href={GITHUB} className="text-ink-soft underline-offset-2 hover:underline">
+          <a href={GITHUB} className="text-ink-soft underline underline-offset-2 hover:text-ink">
             Source on GitHub
           </a>
         </p>
