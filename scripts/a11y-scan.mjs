@@ -59,7 +59,36 @@ try {
   await page.click("button[type=submit]");
   await page.waitForURL("**/dashboard", { timeout: 30_000 });
 
-  for (const path of SIGNED_IN) await scan(path);
+  // An empty account hides most of the UI (status badges, tables, the timeline). Put an email in
+  // every status first. The account's Mock provider sends nothing; bounce@ fails permanently and
+  // flaky@ fails transiently. (A first run that scanned only empty pages missed two badge-contrast
+  // failures, 2026-11-22.)
+  const compose = async (to, later) => {
+    await page.goto(`${base}/dashboard/compose`);
+    await page.fill("#to", to);
+    await page.fill("#subject", `Scan ${to}`);
+    await page.fill("#body", "Accessibility scan");
+    if (later) await page.check("input[name=timing] >> nth=1");
+    await page.click("form:has(#to) button[type=submit]");
+    await page.waitForURL((u) => !u.pathname.endsWith("/compose"), { timeout: 15_000 });
+  };
+  await compose("ada@example.com, bounce@example.com, flaky@example.com", false);
+  await compose("later@example.com", true);
+  await compose("cancel@example.com", true);
+
+  const secret = process.env.CRON_SECRET;
+  if (!secret) throw new Error("set CRON_SECRET (the app's value) so the scan can dispatch emails into sent/failed/retrying");
+  const dispatched = await page.request.get(`${base}/api/cron/dispatch`, { headers: { Authorization: `Bearer ${secret}` } });
+  if (!dispatched.ok()) throw new Error(`cron dispatch returned ${dispatched.status()}`);
+
+  page.on("dialog", (d) => d.accept());
+  await page.goto(`${base}/dashboard/emails?status=SCHEDULED`);
+  await page.locator("a", { hasText: "Scan cancel@example.com" }).click();
+  await page.getByRole("button", { name: "Cancel email" }).click();
+  await page.getByText("Email cancelled").waitFor({ timeout: 10_000 });
+  const detailPath = new URL(page.url()).pathname;
+
+  for (const path of [...SIGNED_IN, "/dashboard/emails?status=FAILED", detailPath]) await scan(path);
 } catch (err) {
   console.error(`a11y-scan: ${err instanceof Error ? err.message : err}`);
   await browser.close();

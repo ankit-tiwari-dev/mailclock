@@ -12,11 +12,11 @@
   --color-cobalt-dark: #1a36ad;
   --color-cobalt-wash: #e8edfc;
 
-  --color-sent: #1e7f55;
+  --color-sent: #196a47; /* 5.7:1 on sent-wash */
   --color-sent-wash: #e3f3ea;
-  --color-retry: #a86a0b;
+  --color-retry: #8a5608; /* 5.4:1 on retry-wash */
   --color-retry-wash: #fbf0dc;
-  --color-failed: #c2362f;
+  --color-failed: #a82b25; /* 5.7:1 on failed-wash */
   --color-failed-wash: #fbe5e3;
   --color-muted-wash: #eceff2;
 
