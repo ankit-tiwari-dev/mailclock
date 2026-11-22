@@ -11,6 +11,11 @@
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright";
 
+// A crash must never read as a violation (1) or a pass (0): it means the check did not run.
+process.on("uncaughtException", (e) => { console.error(e); process.exit(2); });
+process.on("unhandledRejection", (e) => { console.error(e); process.exit(2); });
+
+
 const base = (process.env.PREVIEW_URL ?? "").replace(/\/$/, "");
 if (!/^https?:\/\//.test(base)) {
   console.error("a11y-scan: set PREVIEW_URL to the running app, e.g. http://localhost:3000");

@@ -93,7 +93,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: dependency-cruiser (warn until ${{ env.WARN_UNTIL }})
-        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- npm run check:arch
+        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/arch-check.mjs
 
   security:
     name: Security scans
@@ -154,4 +154,4 @@ jobs:
       - name: axe-core on 10 pages (warn until ${{ env.WARN_UNTIL }})
         run: |
           mkdir -p .reports
-          node scripts/warn-until.mjs "$WARN_UNTIL" -- npm run check:a11y
+          node scripts/a11y-scan.mjs > .reports/axe-results.json && node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/quality-gate.mjs axe .reports/axe-results.json

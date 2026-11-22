@@ -9,6 +9,13 @@
 // Usage: node scripts/arch-check.mjs            check, ignoring known violations (the ratchet)
 //        node scripts/arch-check.mjs --baseline  rewrite .dependency-cruiser-known-violations.json
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+
+// A crash must never read as a violation (1) or a pass (0): it means the check did not run.
+process.on("uncaughtException", (e) => { console.error(e); process.exit(2); });
+process.on("unhandledRejection", (e) => { console.error(e); process.exit(2); });
+
 
 const PKGS = ["-p", "dependency-cruiser@18.8.0", "-p", "typescript@6.0.3"];
 const baseline = process.argv.includes("--baseline");
@@ -16,7 +23,16 @@ const args = baseline
   ? ["depcruise-baseline", "apps", "packages", "--config", ".dependency-cruiser.cjs", "--output-to", ".dependency-cruiser-known-violations.json"]
   : ["depcruise", "apps", "packages", "--config", ".dependency-cruiser.cjs", "--ignore-known", "--output-type", "err"];
 
-const r = spawnSync("npx", ["--yes", ...PKGS, ...args], { encoding: "utf8", shell: process.platform === "win32" });
+// No shell: run npm's own npx-cli.js with this Node when it can be found (npm_execpath when run via
+// npm, or the standard Windows layout); otherwise the npx executable on PATH.
+const npxCli = [process.env.npm_execpath && join(dirname(process.env.npm_execpath), "npx-cli.js"), join(dirname(process.execPath), "node_modules", "npm", "bin", "npx-cli.js")].find((p) => p && existsSync(p));
+const r = npxCli
+  ? spawnSync(process.execPath, [npxCli, "--yes", ...PKGS, ...args], { encoding: "utf8" })
+  : spawnSync("npx", ["--yes", ...PKGS, ...args], { encoding: "utf8" });
+if (r.error || r.status === null) {
+  console.error(`arch-check: could not start npx (${r.error?.message ?? "killed"})`);
+  process.exit(2);
+}
 const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
 process.stdout.write(out);
 

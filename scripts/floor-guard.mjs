@@ -5,6 +5,11 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { matchesGlob } from 'node:path';
 
+// A crash must never read as a violation (1) or a pass (0): it means the check did not run.
+process.on("uncaughtException", (e) => { console.error(e); process.exit(2); });
+process.on("unhandledRejection", (e) => { console.error(e); process.exit(2); });
+
+
 const base = (() => {
   const i = process.argv.indexOf('--base');
   return i > -1 ? process.argv[i + 1] : 'origin/main';

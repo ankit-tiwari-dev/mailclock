@@ -13,6 +13,11 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+// A crash must never read as a violation (1) or a pass (0): it means the check did not run.
+process.on("uncaughtException", (e) => { console.error(e); process.exit(2); });
+process.on("unhandledRejection", (e) => { console.error(e); process.exit(2); });
+
+
 const IMAGES = {
   gitleaks: "ghcr.io/gitleaks/gitleaks:v8.30.1",
   osv: "ghcr.io/google/osv-scanner:v2.7.1",
@@ -30,8 +35,14 @@ const root = process.cwd();
 const reports = join(root, ".reports");
 mkdirSync(reports, { recursive: true });
 
-const docker = (image, args) =>
-  spawnSync("docker", ["run", "--rm", "-v", `${root}:/repo`, "-w", "/repo", image, ...args], { encoding: "utf8" });
+function docker(image, args) {
+  const r = spawnSync("docker", ["run", "--rm", "-v", `${root}:/repo`, "-w", "/repo", image, ...args], { encoding: "utf8" });
+  if (r.error || r.status === null) {
+    console.error(`security-scan: could not start docker (${r.error?.message ?? "killed"}); is Docker installed and running?`);
+    process.exit(2);
+  }
+  return r;
+}
 
 function secrets() {
   // gitleaks exits 1 on findings (we ask for that explicitly) and other non-zero codes on errors.
