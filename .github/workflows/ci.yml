@@ -83,7 +83,6 @@ jobs:
         run: npm run build --workspace @mailclock/web
         env:
           BETTER_AUTH_SECRET: ci-placeholder-secret-0000000000000000
-          MAILCLOCK_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
 
   architecture:
     name: Architecture rules
@@ -138,7 +137,6 @@ jobs:
       DATABASE_URL: postgresql://mailclock:mailclock@localhost:5432/mailclock
       BETTER_AUTH_URL: http://localhost:3000
       BETTER_AUTH_SECRET: ci-placeholder-secret-0000000000000000
-      MAILCLOCK_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       PREVIEW_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -149,6 +147,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: Generate a throwaway encryption key (placeholders are refused at runtime)
+        run: echo "MAILCLOCK_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
       - run: npm run db:deploy
       - run: npm run build --workspace @mailclock/web
       - run: npx playwright install --with-deps chromium

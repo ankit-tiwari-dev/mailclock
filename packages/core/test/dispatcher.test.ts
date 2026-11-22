@@ -81,6 +81,14 @@ describe("scheduling", () => {
     expect(await prisma.emailEvent.count({ where: { type: "CREATED" } })).toBe(1000);
   });
 
+  it("rejects an empty or blank idempotency key instead of storing it (sharp edges, 2026-11-22)", () => {
+    // An empty Idempotency-Key header used to be stored as "" and fail every later request with a 500.
+    for (const key of ["", "   "]) {
+      expect(createEmailSchema.safeParse({ to: "a@example.com", subject: "s", text: "t", idempotencyKey: key }).success).toBe(false);
+    }
+    expect(createEmailSchema.parse({ to: "a@example.com", subject: "s", text: "t", idempotencyKey: " order-1 " }).idempotencyKey).toBe("order-1");
+  });
+
   it("staggers a batch", async () => {
     const { created } = await scheduleBatch(ctx, {
       emails: [input(), input({ to: "b@example.com" }), input({ to: "c@example.com" })],

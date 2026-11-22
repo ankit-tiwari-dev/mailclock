@@ -20,9 +20,9 @@ RUN npm run db:generate
 
 FROM source AS web-build
 # Placeholders: nothing connects at build time, but modules read these on import.
+# (No encryption key: it is read only when credentials are used, and placeholders are refused.)
 RUN DATABASE_URL=postgresql://build:build@localhost:5432/build \
     BETTER_AUTH_SECRET=build-time-placeholder-secret-0000000000 \
-    MAILCLOCK_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
     NEXT_TELEMETRY_DISABLED=1 \
     npm run build --workspace @mailclock/web
 

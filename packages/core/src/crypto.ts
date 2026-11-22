@@ -9,6 +9,11 @@ function getKey(): Buffer {
   if (!raw) throw new Error("MAILCLOCK_ENCRYPTION_KEY is not set (generate one with: openssl rand -base64 32)");
   const key = Buffer.from(raw, "base64");
   if (key.length !== 32) throw new Error("MAILCLOCK_ENCRYPTION_KEY must be 32 bytes, base64-encoded");
+  // 32 random bytes have ~30 distinct values; a typed passphrase or a placeholder like
+  // "AAAA…=" (all zero bytes) has far fewer. Refuse those rather than encrypt with them.
+  if (new Set(key).size < 16) {
+    throw new Error("MAILCLOCK_ENCRYPTION_KEY looks like a placeholder, not random bytes. Generate one with: openssl rand -base64 32");
+  }
   return key;
 }
 

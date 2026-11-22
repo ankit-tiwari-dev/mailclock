@@ -11,8 +11,10 @@ export const maxDuration = 60;
  */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
+  // A short secret is treated as unset (fail closed): it can be guessed, and this route sends email.
+  if (secret && secret.length < 32) console.error("[cron] CRON_SECRET is shorter than 32 characters; refusing all cron requests");
   const given = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  if (!secret || !safeEqual(given, secret)) {
+  if (!secret || secret.length < 32 || !safeEqual(given, secret)) {
     return NextResponse.json({ error: { code: "unauthorized", message: "Invalid cron secret" } }, { status: 401 });
   }
   // Unique per invocation: overlapping cron runs must not be able to finish each other's leases.

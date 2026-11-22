@@ -67,12 +67,25 @@ export function apiRoute<Ctx>(
   };
 }
 
-export async function parseJson<T>(req: NextRequest, schema: ZodType<T>): Promise<T> {
-  let body: unknown;
+export async function readJson(req: NextRequest): Promise<unknown> {
   try {
-    body = await req.json();
+    return await req.json();
   } catch {
     throw new MailclockError("validation_error", "Request body must be valid JSON");
   }
-  return schema.parse(body);
+}
+
+export async function parseJson<T>(req: NextRequest, schema: ZodType<T>): Promise<T> {
+  return schema.parse(await readJson(req));
+}
+
+/**
+ * Body with the Idempotency-Key header folded in, so the header passes the same validation as the
+ * body field (an empty header used to be stored as "" and fail every later request with a 500).
+ */
+export async function readJsonWithIdempotencyKey(req: NextRequest): Promise<unknown> {
+  const body = await readJson(req);
+  const header = req.headers.get("idempotency-key");
+  if (header === null || !body || typeof body !== "object" || Array.isArray(body) || "idempotencyKey" in body) return body;
+  return { ...body, idempotencyKey: header };
 }

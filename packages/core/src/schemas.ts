@@ -35,7 +35,7 @@ export const createEmailSchema = z
     tags: z.array(z.string().trim().min(1).max(64)).max(20).optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
     providerId: z.uuid().optional(),
-    idempotencyKey: z.string().min(1).max(256).optional(),
+    idempotencyKey: z.string().trim().min(1, "Idempotency key cannot be empty").max(256).optional(),
     maxAttempts: z.number().int().min(1).max(10).optional(),
   })
   .refine((v) => v.html || v.text, { message: "Provide html or text", path: ["html"] });
