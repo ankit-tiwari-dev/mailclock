@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { dispatchDue, safeEqual } from "@mailclock/core";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -14,6 +15,7 @@ export async function GET(req: NextRequest) {
   if (!secret || !safeEqual(given, secret)) {
     return NextResponse.json({ error: { code: "unauthorized", message: "Invalid cron secret" } }, { status: 401 });
   }
-  const result = await dispatchDue({ workerId: "cron", timeBudgetMs: 45_000 });
+  // Unique per invocation: overlapping cron runs must not be able to finish each other's leases.
+  const result = await dispatchDue({ workerId: `cron-${randomUUID()}`, timeBudgetMs: 45_000 });
   return NextResponse.json({ data: result });
 }

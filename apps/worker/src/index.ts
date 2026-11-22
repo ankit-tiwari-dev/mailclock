@@ -1,11 +1,13 @@
 import { hostname } from "node:os";
-import { closeTransports, dispatchDue } from "@mailclock/core";
+import { closeTransports, dispatchDue, parseWorkerEnv } from "@mailclock/core";
 import { prisma } from "@mailclock/db";
 
-const POLL_MS = Number(process.env.WORKER_POLL_INTERVAL_MS ?? 2000);
-const BATCH_SIZE = Number(process.env.WORKER_BATCH_SIZE ?? 25);
-const LEASE_SECONDS = Number(process.env.WORKER_LEASE_SECONDS ?? 120);
-const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY ?? 5);
+// Refuse to start on settings that would silently break delivery (see dispatchOptionsSchema).
+const env = parseWorkerEnv(process.env);
+const POLL_MS = env.WORKER_POLL_INTERVAL_MS;
+const BATCH_SIZE = env.WORKER_BATCH_SIZE;
+const LEASE_SECONDS = env.WORKER_LEASE_SECONDS;
+const CONCURRENCY = env.WORKER_CONCURRENCY;
 const workerId = `worker-${hostname()}-${process.pid}`;
 
 let stopping = false;

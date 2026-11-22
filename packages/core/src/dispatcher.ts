@@ -1,18 +1,41 @@
 import { prisma, type Email, type Provider } from "@mailclock/db";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import { claimDue, leasedBy, moveEmail, releaseLease } from "./lifecycle";
 import { ProviderError, transportForProvider, type EmailTransport } from "./providers";
 
-export type DispatchOptions = {
-  /** Identifies this runner in leases, e.g. "worker-<hostname>-<pid>" or "cron". */
-  workerId: string;
-  batchSize?: number;
+/**
+ * Dispatch settings, validated so that no value can silently break delivery: a lease shorter than
+ * a send lets another runner reclaim (and re-send) an email that is still in flight, and a
+ * concurrency or batch size of 0/NaN claims emails that are then never processed.
+ */
+export const dispatchOptionsSchema = z.object({
+  /** Unique per live runner; leases are matched on it. */
+  workerId: z.string().min(1),
+  batchSize: z.number().int().min(1).max(500).default(25),
   /** A SENDING row whose lease is older than this is assumed orphaned and reclaimed. */
-  leaseSeconds?: number;
-  concurrency?: number;
+  leaseSeconds: z.number().int().min(30).max(3600).default(120),
+  concurrency: z.number().int().min(1).max(50).default(5),
   /** Stop picking up new batches after this many ms (keeps serverless invocations bounded). */
-  timeBudgetMs?: number;
-};
+  timeBudgetMs: z.number().int().min(1).max(15 * 60_000).default(50_000),
+});
+export type DispatchOptions = z.input<typeof dispatchOptionsSchema>;
+
+/** Worker settings from the environment. A blank variable means "use the default". */
+export const workerEnvSchema = z.object({
+  WORKER_POLL_INTERVAL_MS: z.coerce.number().int().min(200).max(60_000).default(2000),
+  WORKER_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(25),
+  WORKER_LEASE_SECONDS: z.coerce.number().int().min(30).max(3600).default(120),
+  WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(5),
+});
+
+export function parseWorkerEnv(env: Record<string, string | undefined>) {
+  const present = Object.fromEntries(Object.entries(env).filter(([k, v]) => k.startsWith("WORKER_") && v !== undefined && v.trim() !== ""));
+  const parsed = workerEnvSchema.safeParse(present);
+  if (!parsed.success) {
+    throw new Error(`Invalid worker settings: ${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
+  }
+  return parsed.data;
+}
 
 export type DispatchResult = { claimed: number; sent: number; retrying: number; failed: number; rateLimited: number };
 
@@ -167,7 +190,7 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
  * or the time budget runs out. Safe to call from many processes at once.
  */
 export async function dispatchDue(opts: DispatchOptions): Promise<DispatchResult> {
-  const { workerId, batchSize = 25, leaseSeconds = 120, concurrency = 5, timeBudgetMs = 50_000 } = opts;
+  const { workerId, batchSize, leaseSeconds, concurrency, timeBudgetMs } = dispatchOptionsSchema.parse(opts);
   const started = Date.now();
   const result: DispatchResult = { claimed: 0, sent: 0, retrying: 0, failed: 0, rateLimited: 0 };
   const budget = new RateBudget();

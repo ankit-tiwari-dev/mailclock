@@ -10,6 +10,7 @@ import {
   getEmail,
   leasedBy,
   moveEmail,
+  parseWorkerEnv,
   readEvents,
   rescheduleEmail,
   retryEmail,
@@ -205,6 +206,22 @@ describe("concurrency & limits", () => {
     const keyCtx: ActorContext = { ...ctx, actor: `key:${record.id}`, apiKey: { id: auth.id, dailyQuota: auth.dailyQuota } };
     await scheduleEmail(keyCtx, input());
     await expect(scheduleEmail(keyCtx, input())).rejects.toMatchObject({ code: "quota_exceeded" });
+  });
+});
+
+describe("dispatch settings (sharp edges, 2026-11-22)", () => {
+  it("refuses settings that silently break delivery instead of running with them", async () => {
+    // lease 0 re-sent an in-flight email; concurrency NaN/0 claimed emails and never sent them.
+    for (const bad of [{ leaseSeconds: 0 }, { concurrency: Number.NaN }, { concurrency: 0 }, { batchSize: 0 }]) {
+      await expect(dispatchDue({ workerId: "w", ...bad })).rejects.toThrow();
+    }
+    expect(await prisma.email.count({ where: { status: "SENDING" } })).toBe(0);
+  });
+
+  it("treats a blank worker variable as unset, and rejects nonsense with the variable's name", () => {
+    expect(parseWorkerEnv({ WORKER_LEASE_SECONDS: "", WORKER_CONCURRENCY: "  " })).toMatchObject({ WORKER_LEASE_SECONDS: 120, WORKER_CONCURRENCY: 5 });
+    expect(() => parseWorkerEnv({ WORKER_CONCURRENCY: "abc" })).toThrow(/WORKER_CONCURRENCY/);
+    expect(() => parseWorkerEnv({ WORKER_LEASE_SECONDS: "0" })).toThrow(/WORKER_LEASE_SECONDS/);
   });
 });
 
