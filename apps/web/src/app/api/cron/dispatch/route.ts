@@ -6,8 +6,9 @@ import { NextResponse, type NextRequest } from "next/server";
 export const maxDuration = 60;
 
 /**
- * Sends due emails. Called every minute by Vercel Cron (see vercel.json), so the
- * hosted version needs no separate worker. Safe to run alongside apps/worker.
+ * Sends due emails. Called on a schedule: daily by Vercel Cron on the Hobby plan (vercel.json), and
+ * every minute by an external scheduler or Vercel Pro, so the hosted version needs no separate
+ * worker. Safe to run alongside apps/worker.
  */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;

@@ -81,7 +81,7 @@ export function AddProviderForm() {
           <Field label="Password" htmlFor="pass">
             <Input id="pass" name="pass" type="password" autoComplete="off" />
           </Field>
-          <Field label="Encryption" htmlFor="tls" hint="STARTTLS refuses to send if the server cannot encrypt. Turning encryption off is only allowed for a local relay.">
+          <Field label="Encryption" htmlFor="tls" hint="STARTTLS refuses to send if the server cannot encrypt. Turning encryption off is only for a local relay on a self-hosted install that sets MAILCLOCK_ALLOW_PRIVATE_SMTP_HOSTS=true.">
             <Select id="tls" name="tls" defaultValue="starttls">
               <option value="starttls">STARTTLS, required (port 587)</option>
               <option value="implicit">TLS from the start (port 465)</option>

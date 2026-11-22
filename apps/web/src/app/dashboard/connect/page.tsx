@@ -55,6 +55,9 @@ export default async function ConnectPage() {
 });
 const { data: email } = await res.json(); // email.id, email.status`;
 
+  const claudeCode = `claude mcp add --transport http mailclock ${origin}/api/mcp \\
+  --header "Authorization: Bearer mc_live_..."`;
+
   const mcp = `{
   "mcpServers": {
     "mailclock": {
@@ -69,7 +72,7 @@ const { data: email } = await res.json(); // email.id, email.status`;
     <>
       <PageHeader
         title="Connect your app"
-        description="Everything talks to the same API with an API key: your backend, the CLI, and AI agents over MCP."
+        description="Everything talks to the same API with an API key: your backend, scripts, and AI agents over MCP."
         actions={<ButtonLink href="/dashboard/keys">Create an API key</ButtonLink>}
       />
       <div className="grid max-w-4xl gap-6">
@@ -80,11 +83,16 @@ const { data: email } = await res.json(); // email.id, email.status`;
           code={node}
         />
         <Snippet
-          title="From an AI agent (MCP)"
+          title="From Claude Code (MCP)"
+          description="The agent can schedule, reschedule, cancel, and check on emails. Give it a key with a daily limit."
+          code={claudeCode}
+        />
+        <Snippet
+          title="From Cursor and other MCP clients"
           description={
             <>
-              Add Mailclock to Claude Code, Claude Desktop, Cursor, or any MCP client. The agent can schedule, reschedule, cancel,
-              and check on emails. Give it a key with a daily limit.
+              For clients that connect to remote servers with headers (e.g. <code>.cursor/mcp.json</code>). Clients that only run
+              local servers, like Claude Desktop, can use the <code>mcp-remote</code> bridge; see the README.
             </>
           }
           code={mcp}

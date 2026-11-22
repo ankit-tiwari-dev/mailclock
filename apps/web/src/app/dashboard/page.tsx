@@ -22,7 +22,7 @@ export default async function OverviewPage() {
 
   const setupSteps = [
     { done: realProviders > 0, title: "Connect a provider", body: "Add SMTP or Resend credentials so emails actually leave Mailclock.", href: "/dashboard/providers" },
-    { done: keyCount > 0, title: "Create an API key", body: "Your app, the CLI, and MCP clients all authenticate with one.", href: "/dashboard/keys" },
+    { done: keyCount > 0, title: "Create an API key", body: "Your app and MCP clients authenticate with one.", href: "/dashboard/keys" },
     { done: stats.counts.SENT > 0, title: "Send your first email", body: "Schedule one from the dashboard, or with a single curl.", href: "/dashboard/compose" },
   ];
   const setupDone = setupSteps.every((s) => s.done);
@@ -82,7 +82,7 @@ export default async function OverviewPage() {
           <h2 className="border-b border-line px-5 py-3.5 font-semibold">Coming up</h2>
           {upcoming.length === 0 ? (
             <EmptyState title="Nothing is scheduled for the next 18 hours">
-              Emails you schedule from the API, CLI, MCP, or this dashboard will line up here.
+              Emails you schedule from the API, MCP, or this dashboard will line up here.
             </EmptyState>
           ) : (
             <ul className="divide-y divide-line">
