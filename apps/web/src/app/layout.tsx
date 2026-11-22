@@ -5,6 +5,9 @@ import "./globals.css";
 const instrument = Instrument_Sans({ subsets: ["latin"], variable: "--font-instrument", display: "swap" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
 
+// Pages are rendered per request so each response carries a fresh CSP nonce (see src/proxy.ts).
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: { default: "Mailclock — open-source email scheduling", template: "%s · Mailclock" },
   description:
