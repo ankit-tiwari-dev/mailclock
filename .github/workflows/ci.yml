@@ -69,7 +69,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm ci
+      - run: npm ci # .npmrc: ignore-scripts=true
+      - run: npm run db:generate
       - run: npm run db:deploy
       - name: Types (blocking)
         run: npm run typecheck
@@ -96,7 +97,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm ci
+      - run: npm ci # .npmrc: ignore-scripts=true
+      - run: npm run db:generate
       - name: dependency-cruiser (warns until the CONSTRAINTS.md date)
         run: node scripts/warn-until.mjs -- node scripts/arch-check.mjs
 
@@ -146,7 +148,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm ci
+      - run: npm ci # .npmrc: ignore-scripts=true
+      - run: npm run db:generate
       - name: Generate a throwaway encryption key (placeholders are refused at runtime)
         run: echo "MAILCLOCK_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
       - run: npm run db:deploy

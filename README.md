@@ -66,8 +66,10 @@ cp .env.example .env
 # 2. Start Postgres
 docker compose up -d db
 
-# 3. Install and create the tables
+# 3. Install, generate the database client, and create the tables
+#    (.npmrc blocks dependency install scripts, so generation is an explicit step)
 npm install
+npm run db:generate
 npm run db:deploy
 
 # 4. Run the web app and the worker
