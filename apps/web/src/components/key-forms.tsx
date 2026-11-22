@@ -35,7 +35,7 @@ export function CreateKeyForm() {
         e.preventDefault();
         setError(null);
         start(async () => {
-          const res = await createApiKeyAction({ name, readOnly, dailyQuota: quota ? Number(quota) : undefined });
+          const res = await createApiKeyAction({ name, readOnly, dailyQuota: quota.trim() ? Number(quota) : undefined });
           if (!res.ok) return setError(res.error);
           setCreated(res.data!.key);
           setName("");

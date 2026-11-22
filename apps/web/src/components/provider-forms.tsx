@@ -40,7 +40,7 @@ export function AddProviderForm() {
             type,
             config,
             defaultFrom: get("defaultFrom") || undefined,
-            ratePerHour: Number(get("ratePerHour")) || undefined,
+            ratePerHour: get("ratePerHour") ? Number(get("ratePerHour")) : undefined,
             verify: fd.get("verify") === "on",
           });
           if (!res.ok) return setError(res.error);

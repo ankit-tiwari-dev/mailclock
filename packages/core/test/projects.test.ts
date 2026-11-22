@@ -112,6 +112,44 @@ describe("API keys", () => {
   });
 });
 
+describe("limits (sharp edges, 2026-11-22)", () => {
+  // dailyQuota 0 used to mean "unlimited" and ratePerHour -1 made a provider never send.
+  it("accepts only no-limit or a positive whole number", async () => {
+    const project = await prisma.project.create({ data: { name: "P", ownerId: userId } });
+    for (const bad of [0, -1, 1.5, Number.NaN]) {
+      await expect(createApiKey({ projectId: project.id, name: "k", dailyQuota: bad })).rejects.toMatchObject({ code: "validation_error" });
+      await expect(createProvider(project.id, { name: "m", type: "MOCK", config: {}, ratePerHour: bad })).rejects.toMatchObject({
+        code: "validation_error",
+      });
+    }
+    expect((await createApiKey({ projectId: project.id, name: "k", dailyQuota: null })).record.dailyQuota).toBeNull();
+    expect((await createProvider(project.id, { name: "m", type: "MOCK", config: {}, ratePerHour: 10 })).ratePerHour).toBe(10);
+  });
+
+  it("the database refuses out-of-range limits even from a direct write", async () => {
+    const project = await prisma.project.create({ data: { name: "P", ownerId: userId } });
+    const p = await createProvider(project.id, { name: "m", type: "MOCK", config: {} });
+    await expect(prisma.provider.update({ where: { id: p.id }, data: { ratePerHour: -1 } })).rejects.toThrow();
+    const { record } = await createApiKey({ projectId: project.id, name: "k" });
+    await expect(prisma.apiKey.update({ where: { id: record.id }, data: { dailyQuota: 0 } })).rejects.toThrow();
+  });
+});
+
+describe("encryption key", () => {
+  it("refuses a placeholder key such as all zero bytes, or a typed passphrase", () => {
+    const real = process.env.MAILCLOCK_ENCRYPTION_KEY;
+    try {
+      for (const weak of [Buffer.alloc(32, 0), Buffer.from("x".repeat(32)), Buffer.from("password1234password1234password")]) {
+        process.env.MAILCLOCK_ENCRYPTION_KEY = weak.toString("base64");
+        expect(() => encryptJson({ a: 1 })).toThrow(/placeholder/);
+      }
+    } finally {
+      process.env.MAILCLOCK_ENCRYPTION_KEY = real;
+    }
+    expect(() => encryptJson({ a: 1 })).not.toThrow();
+  });
+});
+
 describe("credential encryption", () => {
   it("round-trips, and rejects tampered or truncated payloads", () => {
     const sealed = encryptJson({ pass: "hunter2" });

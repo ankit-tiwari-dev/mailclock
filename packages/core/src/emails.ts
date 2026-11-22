@@ -28,7 +28,7 @@ async function resolveProvider(projectId: string, providerId?: string) {
 
 async function enforceQuota(ctx: ActorContext, count: number) {
   const quota = ctx.apiKey?.dailyQuota;
-  if (!quota) return;
+  if (quota === null || quota === undefined) return; // no limit; 0 cannot be stored (CHECK constraint)
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
   const used = await prisma.email.count({ where: { actor: ctx.actor, createdAt: { gte: startOfDay } } });

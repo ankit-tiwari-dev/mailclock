@@ -118,7 +118,7 @@ export async function createApiKeyAction(input: { name: string; readOnly: boolea
       projectId: project.id,
       name: input.name.trim(),
       scopes: input.readOnly ? ["emails:read"] : [...API_KEY_SCOPES],
-      dailyQuota: input.dailyQuota || null,
+      dailyQuota: input.dailyQuota,
     });
     return { key };
   });

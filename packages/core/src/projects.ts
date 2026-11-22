@@ -1,6 +1,6 @@
 import { prisma, type ProviderType } from "@mailclock/db";
 import { encryptJson } from "./crypto";
-import { MailclockError } from "./errors";
+import { MailclockError, parseLimit } from "./errors";
 import { IN_FLIGHT_STATUSES } from "./status";
 import { createTransport, parseProviderConfig } from "./providers";
 
@@ -83,6 +83,7 @@ export async function verifyProviderConfig(type: ProviderType, config: unknown) 
 
 export async function createProvider(projectId: string, input: ProviderInput) {
   const config = parseProviderConfig(input.type, input.config);
+  const ratePerHour = parseLimit(input.ratePerHour, "Hourly limit");
   const isFirst = (await prisma.provider.count({ where: { projectId } })) === 0;
   const makeDefault = input.isDefault || isFirst;
   return prisma.$transaction(async (tx) => {
@@ -94,7 +95,7 @@ export async function createProvider(projectId: string, input: ProviderInput) {
         type: input.type,
         configEnc: encryptJson(config),
         defaultFrom: input.defaultFrom || null,
-        ratePerHour: input.ratePerHour || null,
+        ratePerHour,
         isDefault: makeDefault,
       },
       select: publicProviderFields,

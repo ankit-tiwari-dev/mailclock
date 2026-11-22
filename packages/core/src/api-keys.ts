@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "@mailclock/db";
 import { sha256 } from "./crypto";
-import { MailclockError } from "./errors";
+import { MailclockError, parseLimit } from "./errors";
 
 export const API_KEY_SCOPES = ["emails:read", "emails:write"] as const;
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
@@ -27,7 +27,7 @@ export async function createApiKey(input: {
       prefix,
       hash,
       scopes: input.scopes ?? [...API_KEY_SCOPES],
-      dailyQuota: input.dailyQuota ?? null,
+      dailyQuota: parseLimit(input.dailyQuota, "Daily limit"),
     },
   });
   // The plaintext key is returned exactly once.
