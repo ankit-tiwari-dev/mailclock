@@ -27,6 +27,7 @@ RUN DATABASE_URL=postgresql://build:build@localhost:5432/build \
     npm run build --workspace @mailclock/web
 
 FROM source AS migrate
+USER node
 CMD ["npm", "run", "db:deploy"]
 
 FROM source AS worker
