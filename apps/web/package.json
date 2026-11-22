@@ -12,6 +12,7 @@
   "dependencies": {
     "@mailclock/core": "*",
     "@mailclock/db": "*",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "better-auth": "^1.7.27",
     "clsx": "^2.1.1",
     "lucide-react": "^1.77.0",

@@ -112,7 +112,7 @@ Remote (Streamable HTTP at `/api/mcp`, API-key auth) and local (`@mailclock/mcp`
 | Phase | Scope |
 |---|---|
 | **1 — Foundation** | Monorepo, schema, auth, projects, API keys, encrypted providers (Mock/SMTP/Resend), Postgres dispatcher + worker + cron route, REST v1, new dashboard, Docker Compose, `.env.example`, README |
-| **2 — Agents** | Remote MCP endpoint, guardrails (quota, approval queue), `mailclock-cli` repo: SDK, CLI, stdio MCP |
+| **2 — Agents** | ~~Remote MCP endpoint~~ (done), ~~daily quotas~~ (done), approval queue, `mailclock-cli` repo: SDK, CLI, stdio MCP |
 | **3 — Product** | Signed webhooks, templates (React Email + variables), suppression list, send windows / quiet hours, SES + Postmark, provider failover, audit log, landing page |
 | **4 — Ecosystem** | `mailclock-docs`, OpenAPI spec, one-click deploy (Railway / Vercel / Coolify), open/click tracking |
 

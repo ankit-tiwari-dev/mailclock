@@ -11,7 +11,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "npm run dev --workspace @mailclock/web & npm run dev --workspace @mailclock/worker",
+    "dev": "concurrently -n web,worker -c blue,green \"npm:dev:web\" \"npm:dev:worker\"",
     "dev:web": "npm run dev --workspace @mailclock/web",
     "dev:worker": "npm run dev --workspace @mailclock/worker",
     "build": "npm run build --workspaces --if-present",
@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "concurrently": "^10.0.7",
     "dotenv": "^18.0.10",
     "typescript": "^7.0.2"
   }

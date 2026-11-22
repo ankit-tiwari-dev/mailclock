@@ -122,7 +122,7 @@ export default async function OverviewPage() {
               {upcoming.slice(0, 6).map((e) => (
                 <li key={e.id}>
                   <Link href={`/dashboard/emails/${e.id}`} className="flex items-center gap-4 px-5 py-3 hover:bg-paper">
-                    <div className="w-28 shrink-0 text-sm font-medium tabular-nums">{relativeTime(e.nextAttemptAt)}</div>
+                    <div className="w-24 shrink-0 text-sm font-medium tabular-nums sm:w-28">{relativeTime(e.nextAttemptAt)}</div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm">{e.subject}</p>
                       <p className="truncate text-[13px] text-ink-faint">{recipients(e.to)}</p>
