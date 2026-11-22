@@ -1,14 +1,30 @@
 {
-  "dependencies": {
-    "@radix-ui/react-dialog": "^1.1.15",
-    "@radix-ui/react-label": "^2.1.8",
-    "@radix-ui/react-slot": "^1.2.4",
-    "@radix-ui/react-toast": "^1.2.15",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.562.0",
-    "next-auth": "^4.24.13",
-    "papaparse": "^5.5.3",
-    "tailwind-merge": "^3.4.0"
+  "name": "mailclock",
+  "private": true,
+  "description": "Open-source, MCP-native email scheduling.",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @mailclock/web & npm run dev --workspace @mailclock/worker",
+    "dev:web": "npm run dev --workspace @mailclock/web",
+    "dev:worker": "npm run dev --workspace @mailclock/worker",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm run generate --workspace @mailclock/db",
+    "db:migrate": "npm run migrate:dev --workspace @mailclock/db",
+    "db:deploy": "npm run migrate:deploy --workspace @mailclock/db",
+    "postinstall": "npm run generate --workspace @mailclock/db"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "dotenv": "^18.0.10",
+    "typescript": "^7.0.2"
   }
 }

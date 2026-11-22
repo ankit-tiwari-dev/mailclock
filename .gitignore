@@ -23,3 +23,9 @@ yarn-error.log*
 # System Files
 .DS_Store
 Thumbs.db
+
+# Generated
+packages/db/src/generated/
+next-env.d.ts
+*.tsbuildinfo
+.vercel

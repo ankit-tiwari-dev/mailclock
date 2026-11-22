@@ -1,0 +1,221 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth (Better Auth core tables) ──────────────────────────────────────────
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  projects      Project[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ─── Mailclock domain ────────────────────────────────────────────────────────
+
+model Project {
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String
+  ownerId   String
+  owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  apiKeys   ApiKey[]
+  providers Provider[]
+  emails    Email[]
+
+  @@index([ownerId])
+  @@map("project")
+}
+
+model ApiKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  projectId  String    @db.Uuid
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name       String
+  /// First characters of the key, shown in the UI (e.g. "mc_live_ab12").
+  prefix     String
+  /// SHA-256 of the full key. The plaintext key is shown once and never stored.
+  hash       String    @unique
+  scopes     String[]
+  /// Agent guardrail: max emails this key may schedule per UTC day. Null = unlimited.
+  dailyQuota Int?
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([projectId])
+  @@map("api_key")
+}
+
+enum ProviderType {
+  MOCK
+  SMTP
+  RESEND
+}
+
+model Provider {
+  id          String       @id @default(uuid()) @db.Uuid
+  projectId   String       @db.Uuid
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  type        ProviderType
+  /// AES-256-GCM encrypted JSON credentials (see packages/core/src/crypto.ts).
+  configEnc   String
+  /// Default From address used when an email does not specify one.
+  defaultFrom String?
+  ratePerHour Int?
+  isDefault   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  emails      Email[]
+
+  @@index([projectId])
+  @@map("provider")
+}
+
+enum EmailStatus {
+  SCHEDULED
+  SENDING
+  RETRYING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum EmailSource {
+  DASHBOARD
+  API
+  MCP
+  CLI
+}
+
+model Email {
+  id                String       @id @default(uuid()) @db.Uuid
+  projectId         String       @db.Uuid
+  project           Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  providerId        String?      @db.Uuid
+  provider          Provider?    @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  idempotencyKey    String?
+  from              String?
+  to                String[]
+  cc                String[]
+  bcc               String[]
+  replyTo           String?
+  subject           String
+  html              String?
+  text              String?
+  tags              String[]
+  metadata          Json?
+  status            EmailStatus  @default(SCHEDULED)
+  sendAt            DateTime
+  /// When the dispatcher should next pick this row up (sendAt, or a backoff time).
+  nextAttemptAt     DateTime
+  attempts          Int          @default(0)
+  maxAttempts       Int          @default(5)
+  /// Lease: a SENDING row whose lock is older than the lease timeout is reclaimed.
+  lockedAt          DateTime?
+  lockedBy          String?
+  providerMessageId String?
+  lastError         String?
+  sentAt            DateTime?
+  source            EmailSource  @default(API)
+  /// Who created it, e.g. "user:<id>" or "key:<id>".
+  actor             String
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  events            EmailEvent[]
+
+  @@unique([projectId, idempotencyKey])
+  @@index([status, nextAttemptAt])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([projectId, status])
+  @@index([providerId, sentAt])
+  @@map("email")
+}
+
+enum EmailEventType {
+  CREATED
+  RESCHEDULED
+  CANCELLED
+  ATTEMPT_STARTED
+  SENT
+  ATTEMPT_FAILED
+  FAILED
+  RETRY_REQUESTED
+  RATE_LIMITED
+}
+
+model EmailEvent {
+  id        String         @id @default(uuid()) @db.Uuid
+  emailId   String         @db.Uuid
+  email     Email          @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  type      EmailEventType
+  actor     String?
+  data      Json?
+  createdAt DateTime       @default(now())
+
+  @@index([emailId, createdAt])
+  @@map("email_event")
+}

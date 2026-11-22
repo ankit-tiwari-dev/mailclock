@@ -1,29 +1,23 @@
-version: '3.8'
-
+name: mailclock
+# Local development: `docker compose up -d db`, then `npm run dev`.
+# Full self-host:    `docker compose --profile app up -d --build`
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: email_scheduler_postgres
-    restart: always
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: email_scheduler
+      POSTGRES_USER: mailclock
+      POSTGRES_PASSWORD: mailclock
+      POSTGRES_DB: mailclock
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7-alpine
-    container_name: email_scheduler_redis
-    restart: always
-    command: redis-server --appendonly yes
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailclock"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
-  postgres_data:
-  redis_data:
+  pgdata:
