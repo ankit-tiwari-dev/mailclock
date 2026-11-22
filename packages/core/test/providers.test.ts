@@ -32,7 +32,7 @@ const email = {
 beforeEach(() => vi.clearAllMocks());
 
 describe("SMTP", () => {
-  const smtp = () => createTransport("SMTP", { host: "smtp.acme.test", port: 587, user: "u", pass: "p" });
+  const smtp = () => createTransport("SMTP", { host: "93.184.216.34", port: 587, user: "u", pass: "p" });
 
   it("sends and returns the message id, with a stable Message-ID per email", async () => {
     sendMail.mockResolvedValue({ messageId: "<abc@acme>" });

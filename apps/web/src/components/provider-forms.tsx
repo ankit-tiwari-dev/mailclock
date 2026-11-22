@@ -30,7 +30,7 @@ export function AddProviderForm() {
           type === "RESEND"
             ? { apiKey: get("apiKey") }
             : type === "SMTP"
-              ? { host: get("host"), port: Number(get("port") || 587), secure: fd.get("secure") === "on", user: get("user") || undefined, pass: get("pass") || undefined }
+              ? { host: get("host"), port: Number(get("port") || 587), tls: get("tls") || "starttls", user: get("user") || undefined, pass: get("pass") || undefined }
               : {};
         setError(null);
         setDone(false);
@@ -81,9 +81,13 @@ export function AddProviderForm() {
           <Field label="Password" htmlFor="pass">
             <Input id="pass" name="pass" type="password" autoComplete="off" />
           </Field>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="secure" className="accent-cobalt" /> Use TLS from the start (port 465)
-          </label>
+          <Field label="Encryption" htmlFor="tls" hint="STARTTLS refuses to send if the server cannot encrypt. Turning encryption off is only allowed for a local relay.">
+            <Select id="tls" name="tls" defaultValue="starttls">
+              <option value="starttls">STARTTLS, required (port 587)</option>
+              <option value="implicit">TLS from the start (port 465)</option>
+              <option value="none">None, local relay only (e.g. Mailpit)</option>
+            </Select>
+          </Field>
         </>
       )}
 
