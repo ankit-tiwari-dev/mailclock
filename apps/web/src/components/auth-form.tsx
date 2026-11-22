@@ -22,7 +22,10 @@ export function AuthForm({ mode, social }: { mode: "login" | "signup"; social: (
                 variant="secondary"
                 size="lg"
                 type="button"
-                onClick={() => authClient.signIn.social({ provider: p, callbackURL: "/dashboard" })}
+                onClick={async () => {
+                  const res = await authClient.signInSocial(p, "/dashboard");
+                  if (res.error) setError(res.error.message);
+                }}
               >
                 Continue with {p === "github" ? "GitHub" : "Google"}
               </Button>
@@ -42,9 +45,9 @@ export function AuthForm({ mode, social }: { mode: "login" | "signup"; social: (
           start(async () => {
             const res =
               mode === "signup"
-                ? await authClient.signUp.email({ email, password, name: String(fd.get("name") || email.split("@")[0]) })
-                : await authClient.signIn.email({ email, password });
-            if (res.error) return setError(res.error.message ?? "Could not sign in");
+                ? await authClient.signUpEmail(String(fd.get("name") || email.split("@")[0]), email, password)
+                : await authClient.signInEmail(email, password);
+            if (res.error) return setError(res.error.message);
             router.push("/dashboard");
             router.refresh();
           });
