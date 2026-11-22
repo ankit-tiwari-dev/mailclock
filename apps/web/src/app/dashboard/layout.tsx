@@ -1,4 +1,4 @@
-import { prisma } from "@mailclock/db";
+import { countFailed } from "@mailclock/core";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { NavLink, SignOutButton } from "@/components/client";
@@ -7,7 +7,7 @@ import { requireProject } from "@/lib/session";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, project, projects } = await requireProject();
-  const failed = await prisma.email.count({ where: { projectId: project.id, status: "FAILED" } });
+  const failed = await countFailed(project.id);
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-[1400px] flex-col md:flex-row">

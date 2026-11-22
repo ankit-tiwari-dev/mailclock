@@ -57,9 +57,9 @@ Recorded on 2026-11-22. Each may improve; a drop beyond the tolerance is a findi
 |---|---|---|---|---|
 | Core line coverage | 87.89% | must not fall | 0.5 points | `npm run check:coverage` |
 | Core branch coverage | 70.71% | must not fall | 0.5 points | coverage text summary (manual) |
-| Known architecture violations | 5 | must not grow | 0 | `.dependency-cruiser-known-violations.json` (`--ignore-known`) |
+| Known architecture violations | 0 | must not grow | 0 | `.dependency-cruiser-known-violations.json` (`--ignore-known`) |
 
-When a number improves, update it here in the same PR. The five known architecture violations are the dashboard files that query Prisma directly (`app/dashboard/{page,layout,actions,failed/page,emails/[id]/page}`); fixing one means regenerating the baseline with `npm run check:arch:baseline`.
+When a number improves, update it here in the same PR. All five dashboard files that queried Prisma directly now go through `packages/core` (2026-11-22), so `web-ui-not-to-db` holds with no known violations.
 
 ## Known gaps
 

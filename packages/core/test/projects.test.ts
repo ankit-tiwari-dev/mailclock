@@ -5,6 +5,7 @@ import {
   createEmailSchema,
   createProvider,
   decryptJson,
+  describeActor,
   deleteProvider,
   encryptJson,
   ensureDefaultProject,
@@ -109,6 +110,21 @@ describe("API keys", () => {
     await expect(verifyApiKey(null)).rejects.toMatchObject({ code: "unauthorized" });
     await expect(verifyApiKey("bearer-without-mailclock-prefix")).rejects.toMatchObject({ code: "unauthorized" });
     await expect(verifyApiKey("mc_live_doesnotexist")).rejects.toMatchObject({ code: "unauthorized" });
+  });
+});
+
+describe("describeActor", () => {
+  it("names keys and owners only within the project", async () => {
+    const mine = await prisma.project.create({ data: { name: "Mine", ownerId: userId } });
+    const stranger = await prisma.user.create({ data: { id: "u-stranger", name: "Stranger", email: "s@example.com" } });
+    const theirs = await prisma.project.create({ data: { name: "Theirs", ownerId: stranger.id } });
+    const { record: myKey } = await createApiKey({ projectId: mine.id, name: "backend" });
+    const { record: theirKey } = await createApiKey({ projectId: theirs.id, name: "their secret name" });
+
+    expect(await describeActor(mine.id, `key:${myKey.id}`)).toBe('API key "backend"');
+    expect(await describeActor(mine.id, `user:${userId}`)).toBe("Owner");
+    expect(await describeActor(mine.id, `key:${theirKey.id}`)).toBe("a deleted API key");
+    expect(await describeActor(mine.id, `user:${stranger.id}`)).toBe("a former member");
   });
 });
 

@@ -1,5 +1,4 @@
-import { MailclockError, getEmail, isInFlight, readEvents, type EventData } from "@mailclock/core";
-import { prisma } from "@mailclock/db";
+import { MailclockError, describeActor, getEmail, isInFlight, readEvents, type EventData } from "@mailclock/core";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh, CopyButton, LocalTime } from "@/components/client";
@@ -28,20 +27,6 @@ const EVENT_COPY: Copy = {
   RATE_LIMITED: { title: (d) => `Held back by the ${d.ratePerHour}/hour limit`, tone: "bg-retry" },
 };
 
-async function actorName(actor: string | null) {
-  if (!actor) return "Mailclock";
-  const [kind, id] = actor.split(":");
-  if (kind === "key" && id) {
-    const key = await prisma.apiKey.findUnique({ where: { id }, select: { name: true } });
-    return key ? `API key "${key.name}"` : "a deleted API key";
-  }
-  if (kind === "user" && id) {
-    const user = await prisma.user.findUnique({ where: { id }, select: { name: true } });
-    return user?.name ?? "a teammate";
-  }
-  return actor;
-}
-
 export default async function EmailPage(props: PageProps<"/dashboard/emails/[id]">) {
   const { project } = await requireProject();
   const { id } = await props.params;
@@ -49,7 +34,7 @@ export default async function EmailPage(props: PageProps<"/dashboard/emails/[id]
     if (e instanceof MailclockError && e.code === "not_found") notFound();
     throw e;
   });
-  const createdBy = await actorName(email.actor);
+  const createdBy = await describeActor(project.id, email.actor);
   const live = isInFlight(email.status);
   const events = readEvents(email.events);
 

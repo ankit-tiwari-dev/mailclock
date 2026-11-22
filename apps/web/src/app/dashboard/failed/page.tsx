@@ -1,4 +1,4 @@
-import { prisma } from "@mailclock/db";
+import { listFailed } from "@mailclock/core";
 import { AutoRefresh } from "@/components/client";
 import { EmailTable } from "@/components/email-table";
 import { RetryAllButton } from "@/components/email-actions";
@@ -9,12 +9,7 @@ export const metadata = { title: "Failed emails" };
 
 export default async function FailedPage() {
   const { project } = await requireProject();
-  const rows = await prisma.email.findMany({
-    where: { projectId: project.id, status: "FAILED" },
-    orderBy: { updatedAt: "desc" },
-    take: 200,
-    include: { provider: { select: { name: true } } },
-  });
+  const rows = await listFailed(project.id);
 
   return (
     <>

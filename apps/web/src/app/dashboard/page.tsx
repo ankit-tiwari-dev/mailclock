@@ -1,8 +1,7 @@
-import { PENDING_STATUSES, getStats } from "@mailclock/core";
-import { prisma } from "@mailclock/db";
+import { getOverview } from "@mailclock/core";
 import Link from "next/link";
 import { AutoRefresh, LocalTime } from "@/components/client";
-import { Timeline, type TimelinePoint } from "@/components/timeline";
+import { Timeline } from "@/components/timeline";
 import { ButtonLink, EmptyState, PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { recipients, relativeTime } from "@/lib/format";
 import { requireProject } from "@/lib/session";
@@ -11,40 +10,8 @@ export const metadata = { title: "Overview" };
 
 export default async function OverviewPage() {
   const { project } = await requireProject();
-  const now = new Date();
-  const from = new Date(now.getTime() - 6 * 3_600_000);
-  const to = new Date(now.getTime() + 18 * 3_600_000);
-
-  const [stats, sentOrFailed, upcoming, recentlyFailed, keyCount, realProviders] = await Promise.all([
-    getStats(project.id),
-    prisma.email.findMany({
-      where: { projectId: project.id, OR: [{ status: "SENT", sentAt: { gte: from } }, { status: "FAILED", updatedAt: { gte: from } }] },
-      select: { status: true, sentAt: true, updatedAt: true },
-      take: 5000,
-    }),
-    prisma.email.findMany({
-      where: { projectId: project.id, status: { in: [...PENDING_STATUSES] }, nextAttemptAt: { lte: to } },
-      select: { id: true, status: true, nextAttemptAt: true, subject: true, to: true },
-      orderBy: { nextAttemptAt: "asc" },
-      take: 5000,
-    }),
-    prisma.email.findMany({
-      where: { projectId: project.id, status: "FAILED" },
-      orderBy: { updatedAt: "desc" },
-      take: 5,
-      select: { id: true, subject: true, to: true, lastError: true, updatedAt: true },
-    }),
-    prisma.apiKey.count({ where: { projectId: project.id, revokedAt: null } }),
-    prisma.provider.count({ where: { projectId: project.id, type: { not: "MOCK" } } }),
-  ]);
-
-  const points: TimelinePoint[] = [
-    ...sentOrFailed.map((e) => ({
-      at: (e.status === "SENT" ? e.sentAt! : e.updatedAt).toISOString(),
-      status: e.status as "SENT" | "FAILED",
-    })),
-    ...upcoming.map((e) => ({ at: e.nextAttemptAt.toISOString(), status: e.status as "SCHEDULED" | "RETRYING" })),
-  ];
+  const { stats, timeline, upcoming, recentlyFailed, setup } = await getOverview(project.id);
+  const { keyCount, realProviders } = setup;
 
   const figures = [
     { label: "sent in the last 24 hours", value: stats.last24h.sent, href: "/dashboard/emails?status=SENT" },
@@ -98,7 +65,7 @@ export default async function OverviewPage() {
       )}
 
       <Panel className="px-5 pb-5 pt-9">
-        <Timeline points={points} nowIso={now.toISOString()} />
+        <Timeline timeline={timeline} />
       </Panel>
 
       <div className="mt-6 grid grid-cols-2 gap-y-6 border-y border-line py-6 lg:grid-cols-4">
