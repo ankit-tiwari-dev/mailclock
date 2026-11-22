@@ -1,3 +1,6 @@
+# Mirrors CONSTRAINTS.md. If this file and CONSTRAINTS.md disagree, CONSTRAINTS.md wins.
+# "warn until" checks run through scripts/warn-until.mjs, which turns a violation into a warning
+# before the date and blocks on and after it; a check that cannot run always fails.
 name: CI
 
 on:
@@ -12,8 +15,30 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  WARN_UNTIL: "2026-12-06"
+  NODE_VERSION: "22"
+
 jobs:
+  floor:
+    name: Floor guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Floor guard (blocking)
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: node scripts/floor-guard.mjs --base "origin/$BASE_REF"
+
   check:
+    name: Types, tests, coverage, build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -30,19 +55,103 @@ jobs:
       DATABASE_URL: postgresql://mailclock:mailclock@localhost:5432/mailclock_test
       TEST_DATABASE_URL: postgresql://mailclock:mailclock@localhost:5432/mailclock_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
       - run: npm run db:deploy
-      - run: npm run typecheck
-      - run: npm test
+      - name: Types (blocking)
+        run: npm run typecheck
+      - name: Tests with coverage (blocking)
+        run: npm run test:coverage --workspace @mailclock/core
+      - name: Coverage gate (warn until ${{ env.WARN_UNTIL }})
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/coverage-gate.mjs packages/core/coverage/lcov.info --base "origin/$BASE_REF"
       - name: Build web
         run: npm run build --workspace @mailclock/web
         env:
           BETTER_AUTH_SECRET: ci-placeholder-secret-0000000000000000
           MAILCLOCK_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+
+  architecture:
+    name: Architecture rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: dependency-cruiser (warn until ${{ env.WARN_UNTIL }})
+        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- npm run check:arch
+
+  security:
+    name: Security scans
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks scans committed history
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Secrets, gitleaks (blocking)
+        run: node scripts/security-scan.mjs secrets
+      - name: Dependencies, osv-scanner (warn until ${{ env.WARN_UNTIL }})
+        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/security-scan.mjs deps
+      - name: Code, Semgrep (warn until ${{ env.WARN_UNTIL }})
+        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/security-scan.mjs code
+
+  accessibility:
+    name: Accessibility (axe)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: mailclock
+          POSTGRES_PASSWORD: mailclock
+          POSTGRES_DB: mailclock
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mailclock" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://mailclock:mailclock@localhost:5432/mailclock
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ci-placeholder-secret-0000000000000000
+      MAILCLOCK_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      PREVIEW_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run db:deploy
+      - run: npm run build --workspace @mailclock/web
+      - run: npx playwright install --with-deps chromium
+      - name: Start the app
+        run: |
+          npm run start --workspace @mailclock/web > web.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/api/health && exit 0; sleep 1; done
+          cat web.log; exit 2
+      - name: axe-core on 10 pages (warn until ${{ env.WARN_UNTIL }})
+        run: |
+          mkdir -p .reports
+          node scripts/warn-until.mjs "$WARN_UNTIL" -- npm run check:a11y

@@ -10,10 +10,12 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@types/nodemailer": "^8.0.2",
+    "@vitest/coverage-v8": "^5.1.1",
     "vitest": "^5.1.1"
   },
   "dependencies": {

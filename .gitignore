@@ -29,3 +29,7 @@ packages/db/src/generated/
 next-env.d.ts
 *.tsbuildinfo
 .vercel
+
+# Quality reports
+.reports/
+coverage/

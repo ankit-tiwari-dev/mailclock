@@ -11,5 +11,12 @@ export default defineConfig({
     // Tests share one database, so run files serially.
     fileParallelism: false,
     testTimeout: 20_000,
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      // lcov feeds scripts/coverage-gate.mjs (changed-lines check); text-summary is for humans.
+      reporter: ["lcov", "text-summary"],
+      reportsDirectory: "coverage",
+    },
   },
 });
