@@ -124,6 +124,9 @@ const isException = (t) => /^\| *(W|E)\d+ *\|/.test(t.trim());
 const MIN_BEFORE = /(>=|>|≥|at least|minimum|\bmin\b|no less than|not fall|not drop)\s*$/;
 const MAX_BEFORE = /(<=|<|≤|at most|maximum|\bmax\b|no more than|under|below|not grow|not exceed)\s*$/;
 const MIN_AFTER = /^\s*\S*\s*(?:\|\s*)?(or more|or higher|must not fall|must not drop)/;
+// A count of things a check covers ("12 pages", "3 states") is a minimum: covering fewer lowers
+// the bar, covering more raises it. Up to three words may sit between the number and the noun.
+const COUNT_AFTER = /^\s+(?:[a-z-]+\s+){0,3}(pages?|states?|files?|routes?|cases?)\b/i;
 const MAX_AFTER = /^\s*\S*\s*(?:\|\s*)?(or less|or lower|must not grow|must not exceed)/;
 const thresholds = (t) => {
   const out = [], re = /\d+(?:\.\d+)?/g;
@@ -131,7 +134,7 @@ const thresholds = (t) => {
   while ((m = re.exec(t))) {
     const before = t.slice(Math.max(0, m.index - 24), m.index).toLowerCase();
     const after = t.slice(m.index + m[0].length, m.index + m[0].length + 40).toLowerCase();
-    const dir = MIN_BEFORE.test(before) || MIN_AFTER.test(after) ? 'min'
+    const dir = MIN_BEFORE.test(before) || MIN_AFTER.test(after) || COUNT_AFTER.test(after) ? 'min'
       : MAX_BEFORE.test(before) || MAX_AFTER.test(after) ? 'max' : null;
     out.push({ n: Number(m[0]), dir });
   }

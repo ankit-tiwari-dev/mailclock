@@ -19,11 +19,12 @@ const TS_IGNORE = "// @ts-" + "ignore";
 const IT_SKIP = "it." + "skip";
 
 /** A CONSTRAINTS.md with the parts the checks read: a threshold, a warning date, a ratchet, exceptions. */
-const constraintsMd = ({ threshold = 80, warnUntil = "2099-01-01" } = {}) =>
+const constraintsMd = ({ threshold = 80, warnUntil = "2099-01-01", pages = 12 } = {}) =>
   [
     "| Dimension | Rule | Mode |",
     "|---|---|---|",
     `| Coverage | Changed lines ≥ ${threshold}% covered | warn until ${warnUntil}, then block |`,
+    `| Accessibility | Zero serious violations on all ${pages} pages and 3 states the scan visits | CI |`,
     "",
     "| Metric | Today |",
     "|---|---|",
@@ -132,6 +133,10 @@ describe("floor-guard", () => {
     withChange({ "packages/core/test/a.test.ts": 'it("works", () => {\n});\n' }, () => assert.equal(check(), 1)));
   it("rejects a loosened threshold in CONSTRAINTS.md", () =>
     withChange({ "CONSTRAINTS.md": constraintsMd({ threshold: 70 }) }, () => assert.equal(check(), 1)));
+  it("treats a scanned-page count as a minimum: more pages pass, fewer are flagged", () => {
+    withChange({ "CONSTRAINTS.md": constraintsMd({ pages: 14 }) }, () => assert.equal(check(), 0));
+    withChange({ "CONSTRAINTS.md": constraintsMd({ pages: 10 }) }, () => assert.equal(check(), 1));
+  });
   it("rejects a pushed-back warning date in CONSTRAINTS.md (sharp edges, 2026-11-22)", () =>
     withChange({ "CONSTRAINTS.md": constraintsMd({ warnUntil: "2100-06-01" }) }, () => assert.equal(check(), 1)));
   it("reports 'could not run' for a bad base", () => assert.equal(run("floor-guard.mjs", "--base", "nope"), 2));
