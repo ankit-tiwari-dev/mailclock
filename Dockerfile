@@ -5,7 +5,8 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 
 FROM base AS deps
-COPY package.json package-lock.json ./
+# .npmrc (ignore-scripts=true) must be present for the install, or dependency install scripts run.
+COPY package.json package-lock.json .npmrc ./
 COPY apps/web/package.json apps/web/
 COPY apps/worker/package.json apps/worker/
 COPY packages/core/package.json packages/core/
