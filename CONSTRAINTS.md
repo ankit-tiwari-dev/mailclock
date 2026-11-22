@@ -1,7 +1,7 @@
 # Constraints
 
 What "good enough to merge" means for Mailclock, with numbers and the command that checks each one.
-This file is the source of truth; the npm scripts and CI jobs mirror it. If they disagree, this file wins.
+This file is the source of truth; the npm scripts and CI jobs mirror it. If they disagree, this file wins. Two numbers are duplicated in code and must be changed in both places: the 80% changed-line target and the 0.5-point ratchet tolerance (`scripts/coverage-gate.mjs`).
 
 Last reviewed: 2026-11-22 by @ankit-tiwari-dev
 
@@ -13,9 +13,13 @@ Last reviewed: 2026-11-22 by @ankit-tiwari-dev
 | When a task is done (agent hands work back) | `npm run check:task` | ≤ 90 s |
 | CI (every PR and push to main) | `.github/workflows/ci.yml` | unlimited |
 | Anytime, needs Docker | `npm run check:security` | minutes |
-| Anytime, needs the app running | `PREVIEW_URL=http://localhost:3000 npm run check:a11y` | ~1 min |
+| Anytime, needs the app running | `PREVIEW_URL=http://localhost:3000 npm run check:a11y` (more variables below) | ~1 min |
 
-`check:task` needs the test database (see README → Development).
+`check:task` needs the test database (see README → Development) and compares your branch with `origin/main`, so run `git fetch origin` first in a fresh clone or fork.
+
+`check:a11y` needs the app running in production mode with `MAILCLOCK_SYSTEM_EMAIL=log` and its log written to a file, plus these variables for the scan: `PREVIEW_URL` (the app), `MAIL_LOG` (the server log file, where it reads the sign-up confirmation link), and `CRON_SECRET` (the app's value, to dispatch emails into every status before scanning). Optional: `BROWSER_CHANNEL=msedge` or `chrome` to use an installed browser.
+
+The "warn until" period applies to CI only. Locally, `check:fast` and `check:task` block on ownership and coverage straight away.
 
 ## Floor (always enforced, always blocking)
 
@@ -38,7 +42,7 @@ Paths the guard skips are listed, with reasons, in `.constraintsignore`.
 | Coverage | Changed lines under `packages/` ≥ 80% covered | High enough to force a test, low enough to allow a config line | `npm run check:coverage` (lcov ∩ `git diff`) | task end, CI | warn until 2026-12-06, then block |
 | Security: dependencies | No vulnerability with CVSS ≥ 7.0 (high or critical) | Below high is mostly noise for a server app | `npm run check:security -- deps` (osv-scanner) | CI | warn until 2026-12-06, then block |
 | Security: code | No Semgrep finding at ERROR, HIGH, or CRITICAL | Same threshold as dependencies | `npm run check:security -- code` (Semgrep `p/default`) | CI | warn until 2026-12-06, then block |
-| Accessibility | Zero critical or serious axe violations on all 10 public and dashboard pages | Moderate and minor are often debatable; serious blocks real users | `npm run check:a11y` (axe-core, WCAG 2.1 A/AA) | CI | warn until 2026-12-06, then block |
+| Accessibility | Zero critical or serious axe violations on every page and state the scan visits: 12 pages (5 public, 7 dashboard) and 3 states (sign-up confirmation, the failed filter, an email's detail page) | Moderate and minor are often debatable; serious blocks real users | `npm run check:a11y` (axe-core, WCAG 2.1 A/AA) | CI | warn until 2026-12-06, then block |
 | Ownership | No added line writes email events or status outside `packages/core/src/lifecycle.ts`, lists statuses by hand, or verifies API keys outside `authenticateApiKey()` | Each of these has drifted or caused a bug here before (see CLAUDE.md) | `npm run check:ownership` (diff-scoped) | every edit, CI | warn until 2026-12-06, then block |
 | Check self-tests | Every check returns 0/1/2 correctly on replayed past mistakes | A check that passes without doing its work is worse than no check | `npm run test:checks` | task end, CI | block |
 | Architecture | Zero new dependency-rule violations (rules in `.dependency-cruiser.cjs`) | Keeps data access and lifecycle rules in `packages/core` | `npm run check:arch` (dependency-cruiser via `scripts/arch-check.mjs`, `--ignore-known`) | CI | warn until 2026-12-06, then block |

@@ -38,6 +38,7 @@ function AgentDemo() {
             {`{
   "to": "ada@example.com",
   "subject": "Your plan renews on Dec 1",
+  "text": "Hi Ada, your plan renews on Dec 1.",
   "sendAt": "2026-11-30T09:00:00+05:30",
   "tags": ["billing"]
 }`}
@@ -65,20 +66,22 @@ const WAYS = [
     code: `POST /api/v1/emails
 { "to": "ada@example.com",
   "subject": "Welcome",
+  "text": "Thanks for signing up.",
   "sendAt": "2026-12-01T09:00:00Z" }`,
   },
   {
     title: "MCP",
-    body: "Claude, Cursor, and other agents can schedule, reschedule, cancel, and check on emails. Per-key daily limits keep them in bounds.",
+    body: "Claude, Cursor, and other agents can schedule, reschedule, cancel, and check on emails. Per-key daily limits and rate limits keep them in bounds.",
     code: `"mailclock": {
   "type": "http",
-  "url": "https://…/api/mcp"
+  "url": "https://…/api/mcp",
+  "headers": { "Authorization": "Bearer mc_live_…" }
 }`,
   },
   {
     title: "Dashboard",
-    body: "Schedule one email or a CSV of thousands, spaced out over minutes or hours, from your browser.",
-    code: `To:   list.csv (2,140 recipients)
+    body: "Schedule one email or a CSV of up to 1,000 recipients, spaced out over minutes or hours, from your browser.",
+    code: `To:   list.csv (840 recipients)
 When: Monday 9:00
 Pace: 1 minute apart`,
   },
@@ -174,7 +177,8 @@ export default function Home() {
               <pre className="mt-6 overflow-x-auto rounded-lg border border-white/10 p-4 font-mono text-[13px] leading-relaxed text-[#e6ebf1]">
                 {`git clone ${GITHUB}
 cd mailclock && cp .env.example .env
-docker compose --profile app up -d`}
+# set the secrets in .env (see the README)
+docker compose --profile app up -d --build`}
               </pre>
             </div>
             <div>
@@ -193,7 +197,7 @@ docker compose --profile app up -d`}
       <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-8 text-sm text-ink-faint">
         <Logo />
         <p>
-          Open source under the MIT licence.{" "}
+          Open source under the MIT License.{" "}
           <a href={GITHUB} className="text-ink-soft underline underline-offset-2 hover:text-ink">
             Source on GitHub
           </a>

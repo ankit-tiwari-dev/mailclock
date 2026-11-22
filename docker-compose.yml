@@ -1,6 +1,7 @@
 name: mailclock
 
-# Local development: `docker compose up -d db`, then `npm run dev`.
+# Local development: `docker compose up -d db`, then `npm install && npm run db:generate &&
+# npm run db:deploy && npm run dev` (see README → Quick start).
 # Full self-host:    `docker compose --profile app up -d --build`
 services:
   db:

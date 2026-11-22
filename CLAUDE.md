@@ -1,6 +1,6 @@
 Read CONSTRAINTS.md before writing code. Do not weaken it to make a change pass.
 
-Before handing work back, run `npm run check:task` (needs the test database; see README → Development) and fix what it reports.
+Before handing work back, run `npm run check:task` and fix what it reports. It needs the test database (README → Development) and an up-to-date `origin/main` (`git fetch origin`).
 
 ## Rules and what enforces them
 

@@ -16,7 +16,7 @@ export default async function KeysPage() {
         title="API keys"
         description={
           <>
-            Your app, the Mailclock CLI, and MCP clients use these to schedule and read emails in {project.name}. Send one as{" "}
+            Your app, scripts, and MCP clients use these to schedule and read emails in {project.name}. Send one as{" "}
             <Code>Authorization: Bearer mc_live_…</Code>
           </>
         }
