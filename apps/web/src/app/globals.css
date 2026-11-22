@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #17212b;
+  --color-ink-soft: #4a5866;
+  --color-ink-faint: #5f6b79; /* 4.7:1+ on every surface (WCAG AA) */
+  --color-paper: #f4f6f8;
+  --color-surface: #ffffff;
+  --color-line: #dce2e8;
+  --color-line-strong: #c3ccd5;
+  --color-cobalt: #2346d8;
+  --color-cobalt-dark: #1a36ad;
+  --color-cobalt-wash: #e8edfc;
+
+  --color-sent: #196a47; /* 5.7:1 on sent-wash */
+  --color-sent-wash: #e3f3ea;
+  --color-retry: #8a5608; /* 5.4:1 on retry-wash */
+  --color-retry-wash: #fbf0dc;
+  --color-failed: #a82b25; /* 5.7:1 on failed-wash */
+  --color-failed-wash: #fbe5e3;
+  --color-muted-wash: #eceff2;
+
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-cobalt);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
