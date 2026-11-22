@@ -69,6 +69,18 @@ describe("providers", () => {
     expect(() => parseProviderConfig("SMTP", { port: 587 })).toThrow(/Invalid provider credentials/);
   });
 
+  it("refuses a Resend From address on a webmail domain, which Resend can never send from", async () => {
+    const project = await prisma.project.create({ data: { name: "P", ownerId: userId } });
+    for (const from of ["someone@gmail.com", "Name <someone@Outlook.com>"]) {
+      await expect(
+        createProvider(project.id, { name: "R", type: "RESEND", config: { apiKey: "re_test_1" }, defaultFrom: from }),
+      ).rejects.toMatchObject({ code: "validation_error", message: expect.stringMatching(/verified in Resend/) });
+    }
+    // Resend's own test sender and custom domains are fine; SMTP may legitimately use webmail.
+    await expect(createProvider(project.id, { name: "R", type: "RESEND", config: { apiKey: "re_test_1" }, defaultFrom: "Mailclock <onboarding@resend.dev>" })).resolves.toBeTruthy();
+    await expect(createProvider(project.id, { name: "S", type: "SMTP", config: { host: "smtp.gmail.com" }, defaultFrom: "me@gmail.com" })).resolves.toBeTruthy();
+  });
+
   it("refuses to delete a provider that pending emails still use", async () => {
     const project = await ensureDefaultProject(userId);
     const [provider] = await listProviders(project.id);

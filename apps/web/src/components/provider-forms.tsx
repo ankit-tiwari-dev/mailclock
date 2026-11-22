@@ -91,7 +91,15 @@ export function AddProviderForm() {
         </>
       )}
 
-      <Field label="Default From address" htmlFor="defaultFrom" hint="Used when an email doesn't set its own From.">
+      <Field
+        label="Default From address"
+        htmlFor="defaultFrom"
+        hint={
+          type === "RESEND"
+            ? "Must be on a domain you verified in Resend (gmail.com and other webmail never work). For testing: onboarding@resend.dev, which only delivers to your own Resend email."
+            : "Used when an email doesn't set its own From."
+        }
+      >
         <Input id="defaultFrom" name="defaultFrom" placeholder="Acme <hello@acme.com>" required={type !== "MOCK"} />
       </Field>
       <Field label="Hourly limit" htmlFor="ratePerHour" hint="Optional. Extra emails wait for the next free slot instead of failing.">
