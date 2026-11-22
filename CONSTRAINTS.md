@@ -39,6 +39,8 @@ Paths the guard skips are listed, with reasons, in `.constraintsignore`.
 | Security: dependencies | No vulnerability with CVSS ≥ 7.0 (high or critical) | Below high is mostly noise for a server app | `npm run check:security -- deps` (osv-scanner) | CI | warn until 2026-12-06, then block |
 | Security: code | No Semgrep finding at ERROR, HIGH, or CRITICAL | Same threshold as dependencies | `npm run check:security -- code` (Semgrep `p/default`) | CI | warn until 2026-12-06, then block |
 | Accessibility | Zero critical or serious axe violations on all 10 public and dashboard pages | Moderate and minor are often debatable; serious blocks real users | `npm run check:a11y` (axe-core, WCAG 2.1 A/AA) | CI | warn until 2026-12-06, then block |
+| Ownership | No added line writes email events or status outside `packages/core/src/lifecycle.ts`, lists statuses by hand, or verifies API keys outside `authenticateApiKey()` | Each of these has drifted or caused a bug here before (see CLAUDE.md) | `npm run check:ownership` (diff-scoped) | every edit, CI | warn until 2026-12-06, then block |
+| Check self-tests | Every check returns 0/1/2 correctly on replayed past mistakes | A check that passes without doing its work is worse than no check | `npm run test:checks` | task end, CI | block |
 | Architecture | Zero new dependency-rule violations (rules in `.dependency-cruiser.cjs`) | Keeps data access and lifecycle rules in `packages/core` | `npm run check:arch` (dependency-cruiser via `scripts/arch-check.mjs`, `--ignore-known`) | CI | warn until 2026-12-06, then block |
 
 External opinions (not judged by this project's own tests): gitleaks, osv-scanner, Semgrep, axe-core.

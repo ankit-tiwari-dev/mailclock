@@ -22,13 +22,15 @@
     "db:deploy": "npm run migrate:deploy --workspace @mailclock/db",
     "postinstall": "npm run generate --workspace @mailclock/db",
     "check:floor": "node scripts/floor-guard.mjs --base origin/main",
-    "check:fast": "npm run check:floor && npm run typecheck",
+    "check:fast": "npm run check:floor && npm run check:ownership && npm run typecheck",
     "check:coverage": "npm run test:coverage --workspace @mailclock/core && node scripts/coverage-gate.mjs packages/core/coverage/lcov.info --base origin/main",
-    "check:task": "npm run check:fast && npm run check:coverage",
+    "check:task": "npm run check:fast && npm run test:checks && npm run check:coverage",
     "check:arch": "node scripts/arch-check.mjs",
     "check:arch:baseline": "node scripts/arch-check.mjs --baseline",
     "check:security": "node scripts/security-scan.mjs all",
-    "check:a11y": "node scripts/a11y-scan.mjs > .reports/axe-results.json && node scripts/quality-gate.mjs axe .reports/axe-results.json"
+    "check:a11y": "node scripts/a11y-scan.mjs > .reports/axe-results.json && node scripts/quality-gate.mjs axe .reports/axe-results.json",
+    "check:ownership": "node scripts/ownership-check.mjs --base origin/main",
+    "test:checks": "node --test scripts/checks.test.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

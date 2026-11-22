@@ -21,7 +21,7 @@ env:
 
 jobs:
   floor:
-    name: Floor guard
+    name: Floor guard, ownership rules, check self-tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -36,6 +36,12 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref || 'main' }}
         run: node scripts/floor-guard.mjs --base "origin/$BASE_REF"
+      - name: Self-tests for the checks (blocking)
+        run: node --test scripts/checks.test.mjs
+      - name: Ownership rules (warn until ${{ env.WARN_UNTIL }})
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: node scripts/warn-until.mjs "$WARN_UNTIL" -- node scripts/ownership-check.mjs --base "origin/$BASE_REF"
 
   check:
     name: Types, tests, coverage, build
