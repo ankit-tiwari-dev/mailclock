@@ -140,6 +140,9 @@ jobs:
       BETTER_AUTH_URL: http://localhost:3000
       BETTER_AUTH_SECRET: ci-placeholder-secret-0000000000000000
       PREVIEW_URL: http://localhost:3000
+      # Confirmation links go to the server log, which the scan reads to finish sign-up.
+      MAILCLOCK_SYSTEM_EMAIL: log
+      MAIL_LOG: web.log
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

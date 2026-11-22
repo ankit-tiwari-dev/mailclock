@@ -76,7 +76,7 @@ npm run db:deploy
 npm run dev
 ```
 
-Open http://localhost:3000 and create an account. Your first project comes with a **Mock** provider, so you can schedule an email right away and watch it move through the dashboard. Send to `bounce@…` to see a permanent failure, or to `flaky@…` to see retries.
+Open http://localhost:3000 and create an account. With `MAILCLOCK_SYSTEM_EMAIL="log"` (the default in `.env.example`), the confirmation link is printed in the terminal running `npm run dev`; open it to finish signing up. Your first project comes with a **Mock** provider, so you can schedule an email right away and watch it move through the dashboard. Send to `bounce@…` to see a permanent failure, or to `flaky@…` to see retries.
 
 When you're ready to send real email, add an SMTP or Resend provider under **Providers**.
 
@@ -195,6 +195,12 @@ All configuration is through environment variables. See [`.env.example`](.env.ex
 | `GITHUB_CLIENT_ID` / `_SECRET` | No | Enables "Continue with GitHub" |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | No | Enables "Continue with Google" |
 | `CRON_SECRET` | For cron | Protects `/api/cron/dispatch` |
+| `MAILCLOCK_SYSTEM_EMAIL` | Yes | How account emails (sign-up confirmation, password reset) are sent: `resend`, `smtp`, or `log` (links printed to the server log, for local development). `/api/health` reports degraded without it. |
+| `MAILCLOCK_SYSTEM_EMAIL_FROM` | With resend/smtp | Sender for account emails, e.g. `Mailclock <no-reply@yourdomain.com>` |
+| `MAILCLOCK_SYSTEM_RESEND_API_KEY` / `MAILCLOCK_SYSTEM_SMTP_*` | With resend/smtp | Credentials for account emails (see `.env.example`) |
+| `MAILCLOCK_API_RATE_LIMIT_PER_MINUTE` | No | Requests per minute per API key, REST and MCP combined (default 120) |
+| `MAILCLOCK_CLIENT_IP_HEADER` | No | Header carrying the real client IP for sign-in rate limits (default `x-forwarded-for`, which Vercel sets). Behind your own proxy, use a header it overwrites. |
+| `MAILCLOCK_ALLOW_PRIVATE_SMTP_HOSTS` | No | `true` lets SMTP providers point at local or private addresses (self-hosted relays). Off by default so the connection test cannot probe your network. |
 | `WORKER_POLL_INTERVAL_MS` | No | How often the worker checks for due emails (default 2000) |
 | `WORKER_BATCH_SIZE` | No | Emails claimed per round (default 25) |
 | `WORKER_CONCURRENCY` | No | Parallel sends per worker (default 5) |

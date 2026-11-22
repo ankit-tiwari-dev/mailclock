@@ -6,6 +6,7 @@ export type ErrorCode =
   | "conflict"
   | "invalid_state"
   | "quota_exceeded"
+  | "rate_limited"
   | "no_provider"
   | "internal_error";
 
@@ -17,6 +18,7 @@ const STATUS: Record<ErrorCode, number> = {
   conflict: 409,
   invalid_state: 409,
   quota_exceeded: 429,
+  rate_limited: 429,
   no_provider: 422,
   internal_error: 500,
 };

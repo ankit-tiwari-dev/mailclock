@@ -55,7 +55,7 @@ Recorded on 2026-11-22. Each may improve; a drop beyond the tolerance is a findi
 
 | Metric | Today | Direction | Tolerance | Checked by |
 |---|---|---|---|---|
-| Core line coverage | 87.89% | must not fall | 0.5 points | `npm run check:coverage` |
+| Core line coverage | 89.10% | must not fall | 0.5 points | `npm run check:coverage` |
 | Core branch coverage | 70.71% | must not fall | 0.5 points | coverage text summary (manual) |
 | Known architecture violations | 0 | must not grow | 0 | `.dependency-cruiser-known-violations.json` (`--ignore-known`) |
 

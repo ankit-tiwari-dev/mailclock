@@ -1,12 +1,16 @@
 import "server-only";
-import { MailclockError, requireScope, verifyApiKey, type ActorContext, type ApiKeyScope, type AuthenticatedKey } from "@mailclock/core";
+import { MailclockError, consumeApiRateLimit, requireScope, verifyApiKey, type ActorContext, type ApiKeyScope, type AuthenticatedKey } from "@mailclock/core";
 import type { EmailSource } from "@mailclock/db";
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError, type ZodType } from "zod";
 
 export function errorResponse(err: unknown) {
   if (err instanceof MailclockError) {
-    return NextResponse.json({ error: { code: err.code, message: err.message, details: err.details } }, { status: err.status });
+    const retryAfter = (err.details as { retryAfter?: number } | undefined)?.retryAfter;
+    return NextResponse.json(
+      { error: { code: err.code, message: err.message, details: err.details } },
+      { status: err.status, headers: retryAfter ? { "Retry-After": String(retryAfter) } : undefined },
+    );
   }
   if (err instanceof ZodError) {
     return NextResponse.json(
@@ -40,6 +44,8 @@ export async function authenticateApiKey(req: Request, scope?: ApiKeyScope): Pro
   const token = header?.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : null;
   const key = await verifyApiKey(token);
   if (scope) requireScope(key, scope);
+  // Per-key limit, shared by REST and MCP and stored in Postgres (holds across instances).
+  await consumeApiRateLimit(`key:${key.id}`);
   return key;
 }
 

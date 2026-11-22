@@ -22,7 +22,7 @@ if (!/^https?:\/\//.test(base)) {
   process.exit(2);
 }
 
-const PUBLIC = ["/", "/login", "/signup"];
+const PUBLIC = ["/", "/login", "/signup", "/forgot-password", "/reset-password?token=example"];
 const SIGNED_IN = [
   "/dashboard",
   "/dashboard/emails",
@@ -48,6 +48,13 @@ try {
     console.error(`a11y-scan: ${path} — ${r.violations.length} violation(s)`);
   };
 
+  /** Scans the page as it is now (client-side states that have no URL of their own). */
+  const scanHere = async (label) => {
+    const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    results.push({ ...r, url: page.url() });
+    console.error(`a11y-scan: ${label} — ${r.violations.length} violation(s)`);
+  };
+
   for (const path of PUBLIC) await scan(path);
 
   // Throwaway account: sign-up goes through the real UI so the scan sees the real session.
@@ -57,6 +64,21 @@ try {
   await page.fill("#email", email);
   await page.fill("#password", "a11y-scan-password");
   await page.click("button[type=submit]");
+  // Sign-up needs a confirmed address. With MAILCLOCK_SYSTEM_EMAIL=log the server prints the
+  // confirmation link to its log; MAIL_LOG points at that file.
+  await page.getByText("We sent a confirmation link").waitFor({ timeout: 30_000 });
+  await scanHere("/signup (check your email)");
+  const mailLog = process.env.MAIL_LOG;
+  if (!mailLog) throw new Error("set MAIL_LOG to the server log file (server running with MAILCLOCK_SYSTEM_EMAIL=log)");
+  const { readFileSync } = await import("node:fs");
+  let link;
+  for (let i = 0; i < 30 && !link; i++) {
+    const lines = readFileSync(mailLog, "utf8").split(/\r?\n/).filter((l) => l.includes('"system-email"') && l.includes(email));
+    link = lines.at(-1) && /https?:\/\/\S+/.exec(JSON.parse(lines.at(-1).slice(lines.at(-1).indexOf("{"))).text)?.[0];
+    if (!link) await new Promise((r) => setTimeout(r, 500));
+  }
+  if (!link) throw new Error(`no confirmation email for ${email} in ${mailLog}`);
+  await page.goto(link);
   await page.waitForURL("**/dashboard", { timeout: 30_000 });
 
   // An empty account hides most of the UI (status badges, tables, the timeline). Put an email in

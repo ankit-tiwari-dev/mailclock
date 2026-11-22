@@ -10,6 +10,21 @@ export function AuthForm({ mode, social }: { mode: "login" | "signup"; social: (
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+
+  if (sentTo) {
+    return (
+      <div className="space-y-4" role="status">
+        <p className="text-[15px]">
+          We sent a confirmation link to <strong>{sentTo}</strong>. Open it to finish {mode === "signup" ? "creating your account" : "signing in"}.
+        </p>
+        <p className="text-sm text-ink-soft">No email after a few minutes? Check your spam folder, or sign in again to get a new link.</p>
+        <Link href="/login" className="text-sm font-medium text-cobalt hover:underline">
+          Back to sign in
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -47,7 +62,12 @@ export function AuthForm({ mode, social }: { mode: "login" | "signup"; social: (
               mode === "signup"
                 ? await authClient.signUpEmail(String(fd.get("name") || email.split("@")[0]), email, password)
                 : await authClient.signInEmail(email, password);
-            if (res.error) return setError(res.error.message);
+            if (res.error) {
+              // Signing in with an unconfirmed address re-sends the link (Better Auth sendOnSignIn).
+              if (res.error.code === "EMAIL_NOT_VERIFIED") return setSentTo(email);
+              return setError(res.error.message);
+            }
+            if ("verify" in res && res.verify) return setSentTo(email);
             router.push("/dashboard");
             router.refresh();
           });
@@ -61,7 +81,19 @@ export function AuthForm({ mode, social }: { mode: "login" | "signup"; social: (
         <Field label="Email" htmlFor="email">
           <Input id="email" name="email" type="email" autoComplete="email" required />
         </Field>
-        <Field label="Password" htmlFor="password" hint={mode === "signup" ? "At least 8 characters." : undefined}>
+        <Field
+          label="Password"
+          htmlFor="password"
+          hint={
+            mode === "signup" ? (
+              "At least 8 characters."
+            ) : (
+              <Link href="/forgot-password" className="text-cobalt hover:underline">
+                Forgot your password?
+              </Link>
+            )
+          }
+        >
           <Input
             id="password"
             name="password"
