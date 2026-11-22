@@ -1,4 +1,4 @@
-import { MailclockError, getEmail } from "@mailclock/core";
+import { MailclockError, getEmail, isInFlight, readEvents, type EventData } from "@mailclock/core";
 import { prisma } from "@mailclock/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -10,18 +10,20 @@ import { requireProject } from "@/lib/session";
 
 export const metadata = { title: "Email" };
 
-type EventData = { attempt?: number; attempts?: number; error?: string; retryAt?: string; messageId?: string; provider?: string; sendAt?: string; source?: string; ratePerHour?: number };
 
 const SOURCE_PHRASE: Record<string, string> = { API: "through the API", MCP: "by an AI agent (MCP)", CLI: "from the CLI", DASHBOARD: "from the dashboard" };
 
-const EVENT_COPY: Record<string, { title: (d: EventData) => string; tone: string }> = {
-  CREATED: { title: (d) => `Scheduled ${SOURCE_PHRASE[d.source ?? "API"] ?? "through the API"}`, tone: "bg-cobalt" },
+type Copy = { [K in keyof EventData]: { title: (d: EventData[K]) => string; tone: string } };
+
+const EVENT_COPY: Copy = {
+  CREATED: { title: (d) => `Scheduled ${SOURCE_PHRASE[d.source] ?? "through the API"}`, tone: "bg-cobalt" },
   RESCHEDULED: { title: () => "Rescheduled", tone: "bg-cobalt" },
   CANCELLED: { title: () => "Cancelled", tone: "bg-ink-faint" },
-  ATTEMPT_STARTED: { title: (d) => `Attempt ${d.attempt ?? ""} started`, tone: "bg-cobalt" },
-  SENT: { title: (d) => `Sent on attempt ${d.attempt ?? 1}${d.provider ? ` via ${d.provider}` : ""}`, tone: "bg-sent" },
-  ATTEMPT_FAILED: { title: (d) => `Attempt ${d.attempt ?? ""} failed`, tone: "bg-retry" },
-  FAILED: { title: (d) => (d.attempts === 1 ? "Rejected by the provider" : `Gave up after ${d.attempts ?? "all"} attempts`), tone: "bg-failed" },
+  ATTEMPT_STARTED: { title: (d) => `Attempt ${d.attempt} started`, tone: "bg-cobalt" },
+  SENT: { title: (d) => `Sent on attempt ${d.attempt} via ${d.provider}`, tone: "bg-sent" },
+  ATTEMPT_FAILED: { title: (d) => `Attempt ${d.attempt} failed`, tone: "bg-retry" },
+  // Older events predate the `permanent` flag; treat them as retries exhausted.
+  FAILED: { title: (d) => (d?.permanent ? "Rejected by the provider" : `Gave up after ${d?.attempts ?? "all"} attempts`), tone: "bg-failed" },
   RETRY_REQUESTED: { title: () => "Sent again by hand", tone: "bg-cobalt" },
   RATE_LIMITED: { title: (d) => `Held back by the ${d.ratePerHour}/hour limit`, tone: "bg-retry" },
 };
@@ -48,7 +50,8 @@ export default async function EmailPage(props: PageProps<"/dashboard/emails/[id]
     throw e;
   });
   const createdBy = await actorName(email.actor);
-  const live = email.status === "SCHEDULED" || email.status === "SENDING" || email.status === "RETRYING";
+  const live = isInFlight(email.status);
+  const events = readEvents(email.events);
 
   const details: [string, React.ReactNode][] = [
     ["From", email.from],
@@ -123,18 +126,18 @@ export default async function EmailPage(props: PageProps<"/dashboard/emails/[id]
           <Panel className="p-5">
             <h2 className="font-semibold">What happened</h2>
             <ol className="mt-4">
-              {email.events.map((ev, i) => {
-                const data = (ev.data ?? {}) as EventData;
-                const copy = EVENT_COPY[ev.type] ?? { title: () => ev.type, tone: "bg-ink-faint" };
-                const last = i === email.events.length - 1;
+              {events.map((ev, i) => {
+                const copy = EVENT_COPY[ev.type] as { title: (d: unknown) => string; tone: string };
+                const data = (ev.data ?? {}) as Partial<{ error: string; retryAt: string }>;
+                const last = i === events.length - 1;
                 return (
-                  <li key={ev.id} className="relative flex gap-3 pb-5 last:pb-0">
+                  <li key={`${i}-${ev.type}`} className="relative flex gap-3 pb-5 last:pb-0">
                     {!last && <span aria-hidden className="absolute left-[5px] top-4 h-full w-px bg-line" />}
                     <span aria-hidden className={cn("relative mt-1.5 size-[11px] shrink-0 rounded-full ring-4 ring-surface", copy.tone)} />
                     <div className="min-w-0 text-sm">
-                      <p className="font-medium">{copy.title(data)}</p>
+                      <p className="font-medium">{copy.title(ev.data)}</p>
                       <p className="text-[13px] text-ink-faint">
-                        <LocalTime iso={ev.createdAt.toISOString()} withSeconds />
+                        <LocalTime iso={ev.at.toISOString()} withSeconds />
                       </p>
                       {data.error && <p className="mt-1 break-words font-mono text-[12px] text-failed">{data.error}</p>}
                       {data.retryAt && (

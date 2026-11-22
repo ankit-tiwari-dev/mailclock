@@ -9,6 +9,8 @@ import {
   retryEmailAction,
   type ActionResult,
 } from "@/app/dashboard/actions";
+import { allowedActions } from "@mailclock/core/status";
+import type { EmailStatus } from "@mailclock/db";
 import { Button, Input, Notice } from "@/components/ui";
 
 function useAction() {
@@ -30,16 +32,16 @@ export function toLocalInputValue(date: Date) {
   return d.toISOString().slice(0, 16);
 }
 
-export function EmailActions({ id, status, sendAtIso }: { id: string; status: string; sendAtIso: string }) {
+export function EmailActions({ id, status, sendAtIso }: { id: string; status: EmailStatus; sendAtIso: string }) {
   const { pending, result, runAction } = useAction();
   const [editing, setEditing] = useState(false);
   const [when, setWhen] = useState(() => toLocalInputValue(new Date(sendAtIso)));
-  const pendingSend = status === "SCHEDULED" || status === "RETRYING";
+  const can = allowedActions(status);
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {pendingSend && (
+        {can.reschedule && (
           <>
             <Button variant="secondary" size="sm" disabled={pending} onClick={() => setEditing((v) => !v)} aria-expanded={editing}>
               Reschedule
@@ -56,7 +58,7 @@ export function EmailActions({ id, status, sendAtIso }: { id: string; status: st
             </Button>
           </>
         )}
-        {status === "FAILED" && (
+        {can.retry && (
           <Button size="sm" disabled={pending} onClick={() => runAction(() => retryEmailAction(id))}>
             Send again
           </Button>

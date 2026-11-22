@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { Prisma, prisma, type Email, type EmailSource, type EmailStatus } from "@mailclock/db";
+import { Prisma, prisma, type Email, type EmailEventType, type EmailSource, type EmailStatus } from "@mailclock/db";
 import { MailclockError } from "./errors";
+import { createdEvent, insertEmails, moveEmail, readEvents, type EmailEventInput } from "./lifecycle";
+import { PENDING_STATUSES, allowedActions } from "./status";
 import type { CreateBatch, CreateEmail, ListEmailsQuery } from "./schemas";
 
 /** Who is acting, on which project. Every mutation is attributed to an actor. */
@@ -12,8 +14,6 @@ export type ActorContext = {
   /** Present when acting via an API key. */
   apiKey?: { id: string; dailyQuota: number | null };
 };
-
-const PENDING: EmailStatus[] = ["SCHEDULED", "RETRYING"];
 
 async function resolveProvider(projectId: string, providerId?: string) {
   const provider = providerId
@@ -69,9 +69,7 @@ function buildCreateData(
     maxAttempts: input.maxAttempts ?? 5,
     source: ctx.source,
     actor: ctx.actor,
-    events: {
-      create: { type: "CREATED", actor: ctx.actor, data: { sendAt: sendAt.toISOString(), source: ctx.source } },
-    },
+    events: createdEvent(ctx.actor, { sendAt: sendAt.toISOString(), source: ctx.source }),
   };
 }
 
@@ -138,24 +136,9 @@ export async function scheduleBatch(ctx: ActorContext, input: CreateBatch) {
     data.push(buildCreateData(ctx, email, provider, new Date(base.getTime() + i * stagger)));
   }
 
-  // Two statements regardless of batch size: one multi-row INSERT for the emails and one for their
-  // CREATED events. IDs are assigned here so events can reference rows before they exist.
-  // (One INSERT per email exceeded the 5s transaction timeout at a few hundred rows.)
-  const rows: Prisma.EmailCreateManyInput[] = [];
-  const events: Prisma.EmailEventCreateManyInput[] = [];
-  for (const { events: nested, ...row } of data) {
-    const id = randomUUID();
-    rows.push({ ...row, id });
-    events.push({ ...(nested?.create as Omit<Prisma.EmailEventCreateManyInput, "emailId">), emailId: id });
-  }
-  const inserted = await prisma.$transaction(async (tx) => {
-    const emails = await tx.email.createManyAndReturn({ data: rows });
-    await tx.emailEvent.createMany({ data: events });
-    return emails;
-  });
-  // RETURNING order is not guaranteed; restore input order.
-  const byId = new Map(inserted.map((e) => [e.id, e]));
-  const created = rows.map((r) => byId.get(r.id!)!);
+  const created = await insertEmails(
+    data.map(({ events: _nested, ...row }) => ({ ...row, id: randomUUID(), actor: ctx.actor, source: ctx.source })),
+  );
   return { created, existing };
 }
 
@@ -194,24 +177,11 @@ export async function getEmail(projectId: string, id: string) {
 }
 
 /**
- * Moves an email between states only if it is currently in one of `from`.
- * The conditional UPDATE makes this safe against the dispatcher racing us.
+ * Runs one user-initiated lifecycle move scoped to the actor's project. On a guard miss, reports
+ * not_found or invalid_state from the email's current status.
  */
-async function transition(
-  ctx: ActorContext,
-  id: string,
-  from: EmailStatus[],
-  data: Prisma.EmailUncheckedUpdateManyInput,
-  event: { type: Prisma.EmailEventCreateManyInput["type"]; data?: Prisma.InputJsonValue },
-) {
-  const count = await prisma.$transaction(async (tx) => {
-    const res = await tx.email.updateMany({ where: { id, projectId: ctx.projectId, status: { in: from } }, data });
-    if (res.count === 1) {
-      await tx.emailEvent.create({ data: { emailId: id, type: event.type, actor: ctx.actor, data: event.data } });
-    }
-    return res.count;
-  });
-  if (count === 1) return getEmail(ctx.projectId, id);
+async function transition(ctx: ActorContext, id: string, from: readonly EmailStatus[], patch: Prisma.EmailUncheckedUpdateManyInput, event: EmailEventInput) {
+  if (await moveEmail({ id, from, projectId: ctx.projectId }, patch, [{ ...event, actor: ctx.actor }])) return getEmail(ctx.projectId, id);
   const current = await prisma.email.findFirst({ where: { id, projectId: ctx.projectId }, select: { status: true } });
   if (!current) throw new MailclockError("not_found", "Email not found");
   throw new MailclockError("invalid_state", `Email is ${current.status}; this action needs one of: ${from.join(", ")}`);
@@ -219,20 +189,15 @@ async function transition(
 
 export function rescheduleEmail(ctx: ActorContext, id: string, sendAt: Date) {
   const at = normaliseSendAt(sendAt);
-  return transition(ctx, id, PENDING, { sendAt: at, nextAttemptAt: at }, {
-    type: "RESCHEDULED",
-    data: { sendAt: at.toISOString() },
-  });
+  return transition(ctx, id, PENDING_STATUSES, { sendAt: at, nextAttemptAt: at }, { type: "RESCHEDULED", data: { sendAt: at.toISOString() } });
 }
 
 export function cancelEmail(ctx: ActorContext, id: string) {
-  return transition(ctx, id, PENDING, { status: "CANCELLED" }, { type: "CANCELLED" });
+  return transition(ctx, id, PENDING_STATUSES, { status: "CANCELLED" }, { type: "CANCELLED", data: null });
 }
 
 export function retryEmail(ctx: ActorContext, id: string) {
-  return transition(ctx, id, ["FAILED"], { status: "SCHEDULED", attempts: 0, nextAttemptAt: new Date() }, {
-    type: "RETRY_REQUESTED",
-  });
+  return transition(ctx, id, ["FAILED"], { status: "SCHEDULED", attempts: 0, nextAttemptAt: new Date() }, { type: "RETRY_REQUESTED", data: null });
 }
 
 export async function getStats(projectId: string) {
@@ -242,7 +207,7 @@ export async function getStats(projectId: string) {
     prisma.email.groupBy({ by: ["status"], where: { projectId }, _count: { _all: true } }),
     prisma.email.count({ where: { projectId, status: "SENT", sentAt: { gte: dayAgo } } }),
     prisma.email.count({ where: { projectId, status: "FAILED", updatedAt: { gte: dayAgo } } }),
-    prisma.email.count({ where: { projectId, status: { in: PENDING }, nextAttemptAt: { lte: dayAhead } } }),
+    prisma.email.count({ where: { projectId, status: { in: [...PENDING_STATUSES] }, nextAttemptAt: { lte: dayAhead } } }),
   ]);
   const counts: Record<EmailStatus, number> = { SCHEDULED: 0, SENDING: 0, RETRYING: 0, SENT: 0, FAILED: 0, CANCELLED: 0 };
   for (const row of byStatus) counts[row.status] = row._count._all;
@@ -250,7 +215,7 @@ export async function getStats(projectId: string) {
 }
 
 type EmailWithEvents = Email & {
-  events?: { type: string; actor: string | null; data: unknown; createdAt: Date }[];
+  events?: { type: EmailEventType; actor: string | null; data: unknown; createdAt: Date }[];
   provider?: { name: string; type: string } | null;
 };
 
@@ -259,6 +224,7 @@ export function serializeEmail(email: EmailWithEvents) {
   const { lockedAt: _l, lockedBy: _b, projectId: _p, events, ...rest } = email;
   return {
     ...rest,
-    ...(events && { events: events.map((e) => ({ type: e.type, actor: e.actor, data: e.data, at: e.createdAt })) }),
+    allowedActions: allowedActions(email.status),
+    ...(events && { events: readEvents(events) }),
   };
 }

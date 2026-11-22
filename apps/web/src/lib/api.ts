@@ -1,5 +1,5 @@
 import "server-only";
-import { MailclockError, requireScope, verifyApiKey, type ActorContext, type ApiKeyScope } from "@mailclock/core";
+import { MailclockError, requireScope, verifyApiKey, type ActorContext, type ApiKeyScope, type AuthenticatedKey } from "@mailclock/core";
 import type { EmailSource } from "@mailclock/db";
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError, type ZodType } from "zod";
@@ -31,6 +31,19 @@ function sourceFrom(req: NextRequest): EmailSource {
 }
 
 /**
+ * The one way a request authenticates with an API key: reads the bearer token, verifies it, and
+ * (when given) checks a scope. REST routes get it via apiRoute(); the MCP endpoint calls it directly.
+ * scripts/ownership-check.mjs rejects new verifyApiKey() calls anywhere else in apps/.
+ */
+export async function authenticateApiKey(req: Request, scope?: ApiKeyScope): Promise<AuthenticatedKey> {
+  const header = req.headers.get("authorization");
+  const token = header?.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : null;
+  const key = await verifyApiKey(token);
+  if (scope) requireScope(key, scope);
+  return key;
+}
+
+/**
  * Wraps a public API route: authenticates the bearer API key, checks its
  * scope, and converts thrown errors into JSON error responses.
  */
@@ -40,10 +53,7 @@ export function apiRoute<Ctx>(
 ) {
   return async (req: NextRequest, ctx: Ctx) => {
     try {
-      const header = req.headers.get("authorization");
-      const token = header?.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : null;
-      const key = await verifyApiKey(token);
-      requireScope(key, scope);
+      const key = await authenticateApiKey(req, scope);
       const actor: ActorContext = {
         projectId: key.projectId,
         actor: `key:${key.id}`,

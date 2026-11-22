@@ -1,6 +1,7 @@
 import type { Email } from "@mailclock/db";
 import Link from "next/link";
 import { LocalTime } from "@/components/client";
+import { isInFlight } from "@mailclock/core/status";
 import { StatusBadge } from "@/components/ui";
 import { recipients } from "@/lib/format";
 
@@ -11,8 +12,8 @@ type Row = Pick<Email, "id" | "subject" | "to" | "status" | "nextAttemptAt" | "s
 /** The time that matters for each status: when it went, or when it will go. */
 function whenFor(e: Row) {
   if (e.status === "SENT" && e.sentAt) return { label: "Sent", at: e.sentAt };
-  if (e.status === "FAILED" || e.status === "CANCELLED") return { label: e.status === "FAILED" ? "Failed" : "Cancelled", at: e.updatedAt };
-  return { label: e.status === "RETRYING" ? "Next try" : "Sends", at: e.nextAttemptAt };
+  if (isInFlight(e.status)) return { label: e.status === "RETRYING" ? "Next try" : "Sends", at: e.nextAttemptAt };
+  return { label: e.status === "FAILED" ? "Failed" : "Cancelled", at: e.updatedAt };
 }
 
 const SOURCE_LABEL = { DASHBOARD: "Dashboard", API: "API", MCP: "MCP", CLI: "CLI" } as const;

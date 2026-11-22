@@ -7,6 +7,9 @@ import {
   createEmailSchema,
   getEmail,
   getStats,
+  hasScope,
+  isPending,
+  readEvents,
   listEmails,
   listEmailsSchema,
   rescheduleEmail,
@@ -34,7 +37,7 @@ function summarize(email: Email, origin: string) {
     to: email.to,
     subject: email.subject,
     sendAt: email.sendAt,
-    nextAttemptAt: email.status === "SCHEDULED" || email.status === "RETRYING" ? email.nextAttemptAt : undefined,
+    nextAttemptAt: isPending(email.status) ? email.nextAttemptAt : undefined,
     sentAt: email.sentAt ?? undefined,
     attempts: email.attempts,
     lastError: email.lastError ?? undefined,
@@ -96,64 +99,68 @@ export function createMcpServer(key: AuthenticatedKey, origin: string) {
     source: "MCP",
     apiKey: { id: key.id, dailyQuota: key.dailyQuota },
   };
-  const canWrite = key.scopes.includes("emails:write");
+  const canRead = hasScope(key, "emails:read");
+  const canWrite = hasScope(key, "emails:write");
 
   // ─── Read tools ────────────────────────────────────────────────────────────
 
-  server.registerTool(
-    "list_emails",
-    {
-      title: "List emails",
-      description: "List emails in this Mailclock project, newest first. Filter by status, tag, or a search term.",
-      inputSchema: {
-        status: z.enum(EMAIL_STATUSES).optional(),
-        tag: z.string().optional(),
-        q: z.string().optional().describe("Matches subject text or an exact recipient address"),
-        limit: z.number().int().min(1).max(50).optional().describe("Default 20"),
-        cursor: z.string().optional().describe("nextCursor from a previous call"),
+  if (canRead) {
+    server.registerTool(
+      "list_emails",
+      {
+        title: "List emails",
+        description: "List emails in this Mailclock project, newest first. Filter by status, tag, or a search term.",
+        inputSchema: {
+          status: z.enum(EMAIL_STATUSES).optional(),
+          tag: z.string().optional(),
+          q: z.string().optional().describe("Matches subject text or an exact recipient address"),
+          limit: z.number().int().min(1).max(50).optional().describe("Default 20"),
+          cursor: z.string().optional().describe("nextCursor from a previous call"),
+        },
+        annotations: { readOnlyHint: true, openWorldHint: false },
       },
-      annotations: { readOnlyHint: true, openWorldHint: false },
-    },
-    (args) =>
-      guard(async () => {
-        const query = listEmailsSchema.parse({ ...args, limit: args.limit ?? 20 });
-        const { items, nextCursor } = await listEmails(actor.projectId, query);
-        return ok({ emails: items.map((e) => summarize(e, origin)), nextCursor });
-      }),
-  );
+      (args) =>
+        guard(async () => {
+          const query = listEmailsSchema.parse({ ...args, limit: args.limit ?? 20 });
+          const { items, nextCursor } = await listEmails(actor.projectId, query);
+          return ok({ emails: items.map((e) => summarize(e, origin)), nextCursor });
+        }),
+    );
 
-  server.registerTool(
-    "get_email",
-    {
-      title: "Get an email",
-      description: "Get one email with its full history: every attempt, provider responses, and errors.",
-      inputSchema: { id: z.string().describe("Email ID") },
-      annotations: { readOnlyHint: true, openWorldHint: false },
-    },
-    ({ id }) =>
-      guard(async () => {
-        const email = await getEmail(actor.projectId, id);
-        return ok({
-          email: {
-            ...summarize(email, origin),
-            from: email.from,
-            providerMessageId: email.providerMessageId ?? undefined,
-            history: email.events.map((e) => ({ type: e.type, at: e.createdAt, ...(e.data as object) })),
-          },
-        });
-      }),
-  );
+    server.registerTool(
+      "get_email",
+      {
+        title: "Get an email",
+        description: "Get one email with its full history: every attempt, provider responses, and errors.",
+        inputSchema: { id: z.string().describe("Email ID") },
+        annotations: { readOnlyHint: true, openWorldHint: false },
+      },
+      ({ id }) =>
+        guard(async () => {
+          const email = await getEmail(actor.projectId, id);
+          return ok({
+            email: {
+              ...summarize(email, origin),
+              from: email.from,
+              providerMessageId: email.providerMessageId ?? undefined,
+              // data is nested (not spread) so a payload field can never overwrite type or at.
+              history: readEvents(email.events),
+            },
+          });
+        }),
+    );
 
-  server.registerTool(
-    "get_stats",
-    {
-      title: "Get delivery stats",
-      description: "Counts of emails by status, plus sent and failed in the last 24 hours and scheduled for the next 24.",
-      inputSchema: {},
-      annotations: { readOnlyHint: true, openWorldHint: false },
-    },
-    () => guard(async () => ok(await getStats(actor.projectId))),
-  );
+    server.registerTool(
+      "get_stats",
+      {
+        title: "Get delivery stats",
+        description: "Counts of emails by status, plus sent and failed in the last 24 hours and scheduled for the next 24.",
+        inputSchema: {},
+        annotations: { readOnlyHint: true, openWorldHint: false },
+      },
+      () => guard(async () => ok(await getStats(actor.projectId))),
+    );
+  }
 
   if (!canWrite) return server;
 

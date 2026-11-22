@@ -1,5 +1,6 @@
 import { prisma, type Email, type Provider } from "@mailclock/db";
 import { ZodError } from "zod";
+import { claimDue, leasedBy, moveEmail, releaseLease } from "./lifecycle";
 import { ProviderError, transportForProvider, type EmailTransport } from "./providers";
 
 export type DispatchOptions = {
@@ -50,30 +51,6 @@ export function closeTransports() {
   transports.clear();
 }
 
-// ─── Claiming ────────────────────────────────────────────────────────────────
-
-/**
- * Atomically leases up to `limit` due emails. SKIP LOCKED lets any number of
- * workers (and the cron route) run concurrently without double-claiming.
- */
-async function claimDue(workerId: string, limit: number, leaseSeconds: number): Promise<string[]> {
-  const rows = await prisma.$queryRaw<{ id: string }[]>`
-    WITH due AS (
-      SELECT id FROM email
-      WHERE (status IN ('SCHEDULED', 'RETRYING') AND "nextAttemptAt" <= now())
-         OR (status = 'SENDING' AND "lockedAt" < now() - (${leaseSeconds}::int * interval '1 second'))
-      ORDER BY "nextAttemptAt"
-      LIMIT ${limit}
-      FOR UPDATE SKIP LOCKED
-    )
-    UPDATE email AS e
-    SET status = 'SENDING', "lockedAt" = now(), "lockedBy" = ${workerId},
-        attempts = e.attempts + 1, "updatedAt" = now()
-    FROM due WHERE e.id = due.id
-    RETURNING e.id`;
-  return rows.map((r) => r.id);
-}
-
 // ─── Rate limiting ───────────────────────────────────────────────────────────
 
 /** Tracks per-provider hourly budgets within one dispatch tick. */
@@ -112,42 +89,29 @@ class RateBudget {
 type ClaimedEmail = Email & { provider: Provider | null };
 type Outcome = "sent" | "retrying" | "failed" | "rateLimited" | "lost";
 
-/** Writes guarded by lockedBy so a worker whose lease was reclaimed cannot clobber the new owner. */
-const owned = (email: ClaimedEmail, workerId: string) => ({ id: email.id, lockedBy: workerId, status: "SENDING" as const });
-
+/** Each outcome is one guarded lifecycle move; "lost" means our lease was reclaimed and nothing was written. */
 async function processEmail(email: ClaimedEmail, workerId: string, budget: RateBudget): Promise<Outcome> {
   const attempt = email.attempts;
+  const guard = leasedBy(email.id, workerId);
 
   if (!email.provider) {
-    return fail(email, workerId, attempt, "The provider for this email was deleted");
+    return fail(email, workerId, attempt, "The provider for this email was deleted", true);
   }
 
   const retryAt = await budget.reserve(email.provider);
   if (retryAt) {
-    const { count } = await prisma.email.updateMany({
-      where: owned(email, workerId),
-      data: {
-        status: attempt > 1 ? "RETRYING" : "SCHEDULED",
-        attempts: attempt - 1, // a deferral is not a failed attempt
-        nextAttemptAt: retryAt,
-        lockedAt: null,
-        lockedBy: null,
-      },
-    });
-    if (count) {
-      await prisma.emailEvent.create({
-        data: {
-          emailId: email.id,
-          type: "RATE_LIMITED",
-          data: { provider: email.provider.name, ratePerHour: email.provider.ratePerHour, retryAt: retryAt.toISOString() },
-        },
-      });
-    }
-    return count ? "rateLimited" : "lost";
+    const moved = await moveEmail(
+      guard,
+      // A deferral is not a failed attempt.
+      { status: attempt > 1 ? "RETRYING" : "SCHEDULED", attempts: attempt - 1, nextAttemptAt: retryAt, ...releaseLease },
+      [{ type: "RATE_LIMITED", data: { provider: email.provider.name, ratePerHour: email.provider.ratePerHour, retryAt: retryAt.toISOString() } }],
+    );
+    return moved ? "rateLimited" : "lost";
   }
 
+  let messageId: string;
   try {
-    const result = await getTransport(email.provider).send({
+    ({ messageId } = await getTransport(email.provider).send({
       from: email.from ?? email.provider.defaultFrom ?? "",
       to: email.to,
       cc: email.cc,
@@ -157,44 +121,32 @@ async function processEmail(email: ClaimedEmail, workerId: string, budget: RateB
       html: email.html,
       text: email.text,
       idempotencyKey: email.id,
-    });
-    const { count } = await prisma.email.updateMany({
-      where: owned(email, workerId),
-      data: { status: "SENT", sentAt: new Date(), providerMessageId: result.messageId, lastError: null, lockedAt: null, lockedBy: null },
-    });
-    await prisma.emailEvent.create({
-      data: { emailId: email.id, type: "SENT", data: { attempt, messageId: result.messageId, provider: email.provider.name } },
-    });
-    return count ? "sent" : "lost";
+    }));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (isPermanentError(err) || attempt >= email.maxAttempts) {
-      return fail(email, workerId, attempt, message);
-    }
+    const permanent = isPermanentError(err);
+    if (permanent || attempt >= email.maxAttempts) return fail(email, workerId, attempt, message, permanent);
     const next = new Date(Date.now() + backoffMs(attempt));
-    const { count } = await prisma.email.updateMany({
-      where: owned(email, workerId),
-      data: { status: "RETRYING", nextAttemptAt: next, lastError: message, lockedAt: null, lockedBy: null },
-    });
-    await prisma.emailEvent.create({
-      data: { emailId: email.id, type: "ATTEMPT_FAILED", data: { attempt, error: message, retryAt: next.toISOString() } },
-    });
-    return count ? "retrying" : "lost";
+    const moved = await moveEmail(guard, { status: "RETRYING", nextAttemptAt: next, lastError: message, ...releaseLease }, [
+      { type: "ATTEMPT_FAILED", data: { attempt, error: message, retryAt: next.toISOString() } },
+    ]);
+    return moved ? "retrying" : "lost";
   }
+
+  // Recording the send is outside the try: a database error here must not be mistaken for a
+  // failed send (which would retry an email the provider already accepted).
+  const moved = await moveEmail(guard, { status: "SENT", sentAt: new Date(), providerMessageId: messageId, lastError: null, ...releaseLease }, [
+    { type: "SENT", data: { attempt, messageId, provider: email.provider.name } },
+  ]);
+  return moved ? "sent" : "lost";
 }
 
-async function fail(email: ClaimedEmail, workerId: string, attempt: number, message: string): Promise<Outcome> {
-  const { count } = await prisma.email.updateMany({
-    where: owned(email, workerId),
-    data: { status: "FAILED", lastError: message, lockedAt: null, lockedBy: null },
-  });
-  await prisma.emailEvent.createMany({
-    data: [
-      { emailId: email.id, type: "ATTEMPT_FAILED", data: { attempt, error: message } },
-      { emailId: email.id, type: "FAILED", data: { attempts: attempt, error: message } },
-    ],
-  });
-  return count ? "failed" : "lost";
+async function fail(email: ClaimedEmail, workerId: string, attempt: number, message: string, permanent: boolean): Promise<Outcome> {
+  const moved = await moveEmail(leasedBy(email.id, workerId), { status: "FAILED", lastError: message, ...releaseLease }, [
+    { type: "ATTEMPT_FAILED", data: { attempt, error: message } },
+    { type: "FAILED", data: { attempts: attempt, error: message, permanent } },
+  ]);
+  return moved ? "failed" : "lost";
 }
 
 async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {

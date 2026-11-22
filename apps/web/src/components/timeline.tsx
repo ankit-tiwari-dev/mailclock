@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { isPending } from "@mailclock/core/status";
 import { cn } from "@/lib/cn";
 
 export type TimelinePoint = { at: string; status: "SENT" | "FAILED" | "SCHEDULED" | "RETRYING" };
@@ -52,7 +53,7 @@ export function Timeline({ points, nowIso }: { points: TimelinePoint[]; nowIso: 
 
   const label = `${points.filter((p) => p.status === "SENT").length} sent and ${
     points.filter((p) => p.status === "FAILED").length
-  } failed in the last 6 hours; ${points.filter((p) => p.status === "SCHEDULED" || p.status === "RETRYING").length} due in the next 18 hours.`;
+  } failed in the last 6 hours; ${points.filter((p) => isPending(p.status)).length} due in the next 18 hours.`;
 
   return (
     <figure aria-label={label}>

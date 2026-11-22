@@ -46,6 +46,8 @@ export async function verifyApiKey(token: string | null | undefined): Promise<Au
   return { id: record.id, projectId: record.projectId, scopes: record.scopes, dailyQuota: record.dailyQuota };
 }
 
+export const hasScope = (key: AuthenticatedKey, scope: ApiKeyScope) => key.scopes.includes(scope);
+
 export function requireScope(key: AuthenticatedKey, scope: ApiKeyScope) {
-  if (!key.scopes.includes(scope)) throw new MailclockError("forbidden", `This API key lacks the "${scope}" scope`);
+  if (!hasScope(key, scope)) throw new MailclockError("forbidden", `This API key lacks the "${scope}" scope`);
 }

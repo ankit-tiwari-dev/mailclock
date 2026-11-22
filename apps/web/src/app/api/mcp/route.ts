@@ -1,7 +1,6 @@
-import { verifyApiKey } from "@mailclock/core";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { NextRequest } from "next/server";
-import { errorResponse } from "@/lib/api";
+import { authenticateApiKey, errorResponse } from "@/lib/api";
 import { createMcpServer } from "@/lib/mcp";
 
 export const maxDuration = 60;
@@ -12,8 +11,8 @@ export const maxDuration = 60;
  */
 async function handle(req: NextRequest) {
   try {
-    const header = req.headers.get("authorization");
-    const key = await verifyApiKey(header?.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : null);
+    // Scopes are applied per tool in createMcpServer (read tools need emails:read, write tools emails:write).
+    const key = await authenticateApiKey(req);
     const origin = process.env.BETTER_AUTH_URL ?? req.nextUrl.origin;
     const server = createMcpServer(key, origin);
     const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });

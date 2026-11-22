@@ -1,6 +1,7 @@
 import { prisma, type ProviderType } from "@mailclock/db";
 import { encryptJson } from "./crypto";
 import { MailclockError } from "./errors";
+import { IN_FLIGHT_STATUSES } from "./status";
 import { createTransport, parseProviderConfig } from "./providers";
 
 // ─── Projects ────────────────────────────────────────────────────────────────
@@ -111,7 +112,7 @@ export async function setDefaultProvider(projectId: string, providerId: string) 
 
 export async function deleteProvider(projectId: string, providerId: string) {
   const pending = await prisma.email.count({
-    where: { projectId, providerId, status: { in: ["SCHEDULED", "RETRYING", "SENDING"] } },
+    where: { projectId, providerId, status: { in: [...IN_FLIGHT_STATUSES] } },
   });
   if (pending) {
     throw new MailclockError("invalid_state", `${pending} pending email(s) use this provider. Cancel them or wait until they are sent.`);

@@ -1,4 +1,4 @@
-import { getStats } from "@mailclock/core";
+import { PENDING_STATUSES, getStats } from "@mailclock/core";
 import { prisma } from "@mailclock/db";
 import Link from "next/link";
 import { AutoRefresh, LocalTime } from "@/components/client";
@@ -23,7 +23,7 @@ export default async function OverviewPage() {
       take: 5000,
     }),
     prisma.email.findMany({
-      where: { projectId: project.id, status: { in: ["SCHEDULED", "RETRYING"] }, nextAttemptAt: { lte: to } },
+      where: { projectId: project.id, status: { in: [...PENDING_STATUSES] }, nextAttemptAt: { lte: to } },
       select: { id: true, status: true, nextAttemptAt: true, subject: true, to: true },
       orderBy: { nextAttemptAt: "asc" },
       take: 5000,

@@ -8,6 +8,9 @@ import {
   createProvider,
   dispatchDue,
   getEmail,
+  leasedBy,
+  moveEmail,
+  readEvents,
   rescheduleEmail,
   retryEmail,
   scheduleBatch,
@@ -129,6 +132,34 @@ describe("failures", () => {
     });
     expect((await dispatch()).sent).toBe(1);
     expect((await getEmail(ctx.projectId, email.id)).attempts).toBe(2);
+  });
+});
+
+describe("lifecycle moves", () => {
+  // Regression: the dispatcher used to write SENT/ATTEMPT_FAILED/FAILED events even when its lease
+  // had been reclaimed and the guarded row update matched nothing.
+  it("a runner whose lease was reclaimed changes nothing and records no event", async () => {
+    const { email } = await scheduleEmail(ctx, input());
+    await prisma.email.update({ where: { id: email.id }, data: { status: "SENDING", lockedBy: "new-owner", lockedAt: new Date() } });
+
+    const moved = await moveEmail(leasedBy(email.id, "old-owner"), { status: "SENT", sentAt: new Date() }, [
+      { type: "SENT", data: { attempt: 1, messageId: "m", provider: "Mock" } },
+    ]);
+
+    expect(moved).toBe(false);
+    const after = await getEmail(ctx.projectId, email.id);
+    expect(after.status).toBe("SENDING");
+    expect(after.events.map((e) => e.type)).toEqual(["CREATED"]);
+  });
+
+  it("records FAILED as permanent only when the provider rejected the email outright", async () => {
+    const { email: bounced } = await scheduleEmail(ctx, input({ to: "bounce@example.com" }));
+    const { email: flaky } = await scheduleEmail(ctx, input({ to: "flaky@example.com", maxAttempts: 1 }));
+    await dispatch();
+    const failedData = async (id: string) =>
+      readEvents((await getEmail(ctx.projectId, id)).events).find((e) => e.type === "FAILED")?.data;
+    expect(await failedData(bounced.id)).toMatchObject({ permanent: true });
+    expect(await failedData(flaky.id)).toMatchObject({ permanent: false });
   });
 });
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EMAIL_STATUSES } from "./status";
 
 const MAX_RECIPIENTS = 50;
 
@@ -51,7 +52,6 @@ export type CreateBatch = z.output<typeof createBatchSchema>;
 
 export const rescheduleSchema = z.object({ sendAt });
 
-export const EMAIL_STATUSES = ["SCHEDULED", "SENDING", "RETRYING", "SENT", "FAILED", "CANCELLED"] as const;
 
 export const listEmailsSchema = z.object({
   status: z.enum(EMAIL_STATUSES).optional(),
