@@ -67,6 +67,16 @@ describe("scheduling", () => {
     expect(b.email.id).toBe(a.email.id);
   });
 
+  it("schedules the maximum batch of 1,000 in one transaction, each with a CREATED event", async () => {
+    const emails = Array.from({ length: 1000 }, (_, i) => input({ to: `bulk${i}@example.com` }));
+    const { created } = await scheduleBatch(ctx, { emails, staggerSeconds: 1 });
+    expect(created).toHaveLength(1000);
+    // Order and stagger follow the input order.
+    expect(created[0]!.to).toEqual(["bulk0@example.com"]);
+    expect(created[999]!.sendAt.getTime() - created[0]!.sendAt.getTime()).toBe(999_000);
+    expect(await prisma.emailEvent.count({ where: { type: "CREATED" } })).toBe(1000);
+  });
+
   it("staggers a batch", async () => {
     const { created } = await scheduleBatch(ctx, {
       emails: [input(), input({ to: "b@example.com" }), input({ to: "c@example.com" })],

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Prisma, prisma, type Email, type EmailSource, type EmailStatus } from "@mailclock/db";
 import { MailclockError } from "./errors";
 import type { CreateBatch, CreateEmail, ListEmailsQuery } from "./schemas";
@@ -137,7 +138,24 @@ export async function scheduleBatch(ctx: ActorContext, input: CreateBatch) {
     data.push(buildCreateData(ctx, email, provider, new Date(base.getTime() + i * stagger)));
   }
 
-  const created = await prisma.$transaction(data.map((d) => prisma.email.create({ data: d })));
+  // Two statements regardless of batch size: one multi-row INSERT for the emails and one for their
+  // CREATED events. IDs are assigned here so events can reference rows before they exist.
+  // (One INSERT per email exceeded the 5s transaction timeout at a few hundred rows.)
+  const rows: Prisma.EmailCreateManyInput[] = [];
+  const events: Prisma.EmailEventCreateManyInput[] = [];
+  for (const { events: nested, ...row } of data) {
+    const id = randomUUID();
+    rows.push({ ...row, id });
+    events.push({ ...(nested?.create as Omit<Prisma.EmailEventCreateManyInput, "emailId">), emailId: id });
+  }
+  const inserted = await prisma.$transaction(async (tx) => {
+    const emails = await tx.email.createManyAndReturn({ data: rows });
+    await tx.emailEvent.createMany({ data: events });
+    return emails;
+  });
+  // RETURNING order is not guaranteed; restore input order.
+  const byId = new Map(inserted.map((e) => [e.id, e]));
+  const created = rows.map((r) => byId.get(r.id!)!);
   return { created, existing };
 }
 
