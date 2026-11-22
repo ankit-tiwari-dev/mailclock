@@ -81,6 +81,18 @@ describe("Resend", () => {
     expect(isPermanentError(failure)).toBe(permanent);
   });
 
+  it("verify() accepts a sending-only key (Resend's recommended kind)", async () => {
+    // Regression: domains.list needs full access, so a sending-only key used to fail the
+    // connection test with "restricted_api_key" even though it can send.
+    domainsList.mockResolvedValue({ data: null, error: { name: "restricted_api_key", message: "This API key is restricted to only send emails", statusCode: 401 } });
+    await expect(resend().verify()).resolves.toBeUndefined();
+  });
+
+  it("verify() still rejects a key Resend does not recognise", async () => {
+    domainsList.mockResolvedValue({ data: null, error: { name: "invalid_api_key", message: "API key is invalid", statusCode: 403 } });
+    await expect(resend().verify()).rejects.toMatchObject({ permanent: true });
+  });
+
   it("verify() checks the key without sending", async () => {
     domainsList.mockResolvedValue({ data: [], error: null });
     await expect(resend().verify()).resolves.toBeUndefined();

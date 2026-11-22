@@ -17,8 +17,11 @@ export function resendTransport(config: ResendConfig): EmailTransport {
   const client = new Resend(config.apiKey);
   return {
     async verify() {
+      // Listing domains proves the key is real without sending anything. A sending-only key
+      // (what Resend recommends, and all Mailclock needs) answers "restricted_api_key": that
+      // still proves the key is valid, so it passes. Unknown or revoked keys still fail.
       const { error } = await client.domains.list();
-      if (error) throw toProviderError(error);
+      if (error && error.name !== "restricted_api_key") throw toProviderError(error);
     },
     async send(email) {
       const body = email.html ? { html: email.html, ...(email.text ? { text: email.text } : {}) } : { text: email.text ?? "" };

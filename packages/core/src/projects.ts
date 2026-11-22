@@ -81,8 +81,29 @@ export async function verifyProviderConfig(type: ProviderType, config: unknown) 
   }
 }
 
+/**
+ * Resend only sends from domains verified in the sender's Resend account, and nobody can verify a
+ * public webmail domain, so a From address there would make every email fail later. Catch it now.
+ */
+const WEBMAIL_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "outlook.com", "hotmail.com", "live.com", "msn.com",
+  "icloud.com", "me.com", "mac.com", "aol.com", "proton.me", "protonmail.com", "gmx.com", "gmx.net", "yandex.com", "mail.com",
+]);
+
+function assertSendableFrom(type: ProviderType, from: string | null | undefined) {
+  if (type !== "RESEND" || !from) return;
+  const domain = /@([^>\s]+)>?\s*$/.exec(from)?.[1]?.toLowerCase();
+  if (domain && WEBMAIL_DOMAINS.has(domain)) {
+    throw new MailclockError(
+      "validation_error",
+      `Resend cannot send from @${domain}: the From address must be on a domain you have verified in Resend. For testing, use onboarding@resend.dev (it only delivers to your own Resend account email).`,
+    );
+  }
+}
+
 export async function createProvider(projectId: string, input: ProviderInput) {
   const config = parseProviderConfig(input.type, input.config);
+  assertSendableFrom(input.type, input.defaultFrom);
   const ratePerHour = parseLimit(input.ratePerHour, "Hourly limit");
   const isFirst = (await prisma.provider.count({ where: { projectId } })) === 0;
   const makeDefault = input.isDefault || isFirst;
